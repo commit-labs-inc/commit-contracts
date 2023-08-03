@@ -19,8 +19,8 @@ impl Metadata for ProgramMetadata {
 
 #[derive(Encode, Decode, TypeInfo)]
 pub enum OrchestratorAction {
-    // the action to route an action
-    Route(String),
+    // route action (String) for an actor (ActorId)
+    Route(String, ActorId),
 }
 
 #[derive(Encode, Decode, TypeInfo)]
@@ -36,15 +36,15 @@ pub struct Orchestrator {
 }
 
 impl Orchestrator {
-
-    pub fn route(&mut self, action: String) -> OrchestratorEvent {
+    // TODO: need to figure out a way to pass routes in a more elegant way
+    pub fn route(&mut self, action: String, actor: String) -> OrchestratorEvent {
         // 1. check if the action is in the routes map
         if !self.routes.contains_key(&action) {
             return OrchestratorEvent::ErrFailedToRoute;
         }
         // 2. route the action to the contract
         let contract_id = self.routes.get(&action).unwrap().to_owned();
-        let res = gstd::msg::send(contract_id.clone(), action.clone(), 0);
+        let res = gstd::msg::send(contract_id.clone(), action.clone()+ "+" + &actor, 0);
         if res.is_err() {
             return OrchestratorEvent::ErrFailedToRoute;
         }

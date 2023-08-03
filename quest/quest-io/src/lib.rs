@@ -20,24 +20,30 @@ impl Metadata for ProgramMetadata {
 // possible actions for an individual quest
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestAction {
-    Claim,  // let user claim the quest
-    Submit(String), // let user submit the quest
-    Grade(ActorId, u8),  // let quest provider grade the quest
+    Claim(String),  // let user claim the quest
+    /* Submit(String), // let user submit the quest
+    Grade(ActorId, u8),  // let quest provider grade the quest */
 }
 
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestEvent {
     Claimed,
-    Submitted,
-    Graded,
+    /* Submitted,
+    Graded, */
     // TODO: move this to a separate enum later
     ErrorClaimerExists,
-    ErrorSubmitterNotExists,
-    ErrorNotQuestOwner,
+    UnknownError,
+    /* ErrorSubmitterNotExists,
+    ErrorNotQuestOwner, */
 }
 
-pub struct Quest {
-    pub id: ActorId,                                // contract id of the quest
+pub struct Quests {
+    // String is the id of the quest
+    // TODO: need to change String into a dedicated type
+    pub map: HashMap<String, Quest>,
+}
+
+pub struct Quest {                                
     pub owner: ActorId,                             // id of the quest provider
     pub name: String,
     pub description: String,
@@ -58,7 +64,7 @@ impl Quest {
         return QuestEvent::Claimed;
     }
 
-    // only existing claimers can submit to a quest
+    /* // only existing claimers can submit to a quest
     pub fn submit(&mut self, claimer: ActorId, submit: String) -> QuestEvent {
         if !self.claimers.contains(&claimer) { return QuestEvent::ErrorSubmitterNotExists;}
         self.claimer_submit.insert(claimer, submit);
@@ -74,6 +80,6 @@ impl Quest {
         self.claimer_grade.insert(recipient, grade);
 
         return QuestEvent::Graded;
-    }
+    } */
 }
 

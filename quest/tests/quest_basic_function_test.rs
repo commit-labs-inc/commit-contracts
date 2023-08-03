@@ -7,34 +7,44 @@
 
 use gtest::{ Log, Program, System };
 use quest_io::{ QuestEvent, QuestAction };
-use quest::QuestInfo;
 const QUEST_ID: u64 = 1;
 const SELF_ID: u64 = 2;
-const NON_EXIST_ID: u64 = 3;
+// const NON_EXIST_ID: u64 = 3;
 
 #[test]
 fn claim_success() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
-    let res = program.send(SELF_ID, QuestAction::Claim);
+    let res = program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
     let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Claimed);
     assert!(res.contains(&log));
 }
 
 // a claimer cannot claim a quest twice
 #[test]
-fn claim_fail() {
+fn claim_fail_double_claim() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
-    program.send(SELF_ID, QuestAction::Claim);
-    let res = program.send(2, QuestAction::Claim);
+    program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
+    let res = program.send(2, QuestAction::Claim(String::from("a fake quest id for testing only")));
     let log = Log::builder().dest(SELF_ID).payload(QuestEvent::ErrorClaimerExists);
     assert!(res.contains(&log));
 }
 
+// cannot claim a non exists quest
 #[test]
+fn claim_fail_non_exist_quest() {
+    let sys = System::new();
+    init_quest(&sys);
+    let program = sys.get_program(QUEST_ID);
+    let res = program.send(SELF_ID, QuestAction::Claim(String::from("a non exists quest id")));
+    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::UnknownError);
+    assert!(res.contains(&log));
+}
+
+/* #[test]
 fn submit_success() {
     let sys = System::new();
     init_quest(&sys);
@@ -87,27 +97,13 @@ fn grade_fail_recipient_not_exists() {
     let res = program.send(SELF_ID, QuestAction::Grade(NON_EXIST_ID.into(), 100));
     let log = Log::builder().dest(SELF_ID).payload(QuestEvent::ErrorSubmitterNotExists);
     assert!(res.contains(&log));
-}
+} */
 
 fn init_quest(sys: &System) {
     sys.init_logger();
     let program = Program::current(&sys);
 
-    let test_quest = r#"
-        {
-            "id": 0,
-            "owner": 2,
-            "name": "test quest",
-            "description": "test quest description",
-            "deadline": 0
-        }
-    "#;
-
-    let test = QuestInfo {
-        field: String::from(test_quest)
-    };
-
-    let res = program.send(SELF_ID, test.field);
+    let res = program.send(SELF_ID, String::from("Hello Quest Contract!"));
     let log = Log::builder().dest(SELF_ID).payload(String::from("Quest Created!"));
     assert!(res.contains(&log));
     

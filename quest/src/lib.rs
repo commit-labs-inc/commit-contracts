@@ -1,59 +1,75 @@
 #![no_std]
 use gstd::{msg, prelude::*, debug};
-use quest_io::{Quest, QuestAction, QuestEvent};
+use quest_io::{Quest, Quests, QuestAction, QuestEvent};
 
-static mut QUEST: Option<Quest> = None;
+static mut QUESTS: Option<Quests> = None;
 
-#[derive(Decode)]
+/* #[derive(Decode)]
 #[codec(crate = gstd::codec)]
 pub struct QuestInfo {
     pub field: String,
-}
+} */
 
 #[no_mangle]
 extern "C" fn init() {
-    // 1. load quest information from message received from the factory contract
-    let _quest_info_json: QuestInfo = msg::load().expect("Failed to load quest information");
-    // 2. parse the information into a shadow quest struct
-    // 3. copy info into actual quest struct
+    // For now, we'll initialize a quest map with a single quest for testing
     unsafe {
-        QUEST = Some(Quest {
-            id: 0.into(),
-            owner: 2.into(),
-            name: String::from("initial quest"),
-            description: String::from("initial quest description"),
+        let quest = Quest {
+            owner: msg::source(),
+            name: String::from("Test Quest"),
+            description: String::from("This is a test quest"),
             deadline: 0,
             claimers: Vec::new(),
             claimer_submit: HashMap::new(),
             claimer_grade: HashMap::new(),
+        };
+
+        let mut map = HashMap::new();
+        // TODO: quest id should be generated from the hash of the quest in the future
+        map.insert(String::from("a fake quest id for testing only"), quest);
+
+        QUESTS = Some(Quests {
+            map,
         });
     }
 
-    debug!("Quest initialized");
+    debug!("Quests initialized");
 
-    msg::reply(String::from("Quest Created!"), 0).expect("Quest Creation Failed");
+    msg::reply(String::from("Quests Map Created!"), 0).expect("Quests Creation Failed");
 }
 
 #[no_mangle]
 extern "C" fn handle() {
     let action: QuestAction = msg::load().expect("Failed to load quest action");
-    let quest = unsafe { QUEST.as_mut().expect("Quest not initialized") };
+    let quests = unsafe { QUESTS.as_mut().expect("Quest not initialized") };
 
     match action {
-        QuestAction::Claim => {
-            match quest.claim(msg::source()) {
-                QuestEvent::Claimed => {
-                    msg::reply(QuestEvent::Claimed, 0).expect("Failed to emit claim event");
+        QuestAction::Claim(quest_id) => {
+            // we first index a quest with the quest id received from the action,
+            // then we add the claimer to the quest
+            // this assumes the claimer is calling this contract directly, without orchestrator in between
+            match quests.map.get_mut(&quest_id) {
+                Some(quest) => {
+                    match quest.claim(msg::source()) {
+                        QuestEvent::Claimed => {
+                            debug!("current claimer list is: {:?}", quest.claimers);
+                            msg::reply(QuestEvent::Claimed, 0).expect("Failed to emit claim event");
+                        },
+                        QuestEvent::ErrorClaimerExists => {
+                            msg::reply(QuestEvent::ErrorClaimerExists, 0).expect("Failed to emit claim error event");
+                        },
+                        _ => {
+                            debug!("Unknown error");
+                        }
+                    }
                 },
-                QuestEvent::ErrorClaimerExists => {
-                    msg::reply(QuestEvent::ErrorClaimerExists, 0).expect("Failed to emit claim error event");
-                },
-                _ => {
-                    debug!("Unknown error");
+                None => {
+                    debug!("Quest not found");
+                    msg::reply(QuestEvent::UnknownError, 0).expect("Failed to emit unknown error event");
                 }
             }
         },
-        QuestAction::Submit(s) => {
+        /* QuestAction::Submit(s) => {
             match quest.submit(msg::source(), s) {
                 QuestEvent::Submitted => {
                     msg::reply(QuestEvent::Submitted, 0).expect("Failed to emit submit event");
@@ -81,7 +97,7 @@ extern "C" fn handle() {
                     debug!("Unknown error");
                 }
             }
-        },
+        }, */
     }
 }
 
