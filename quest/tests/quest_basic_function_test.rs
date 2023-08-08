@@ -5,7 +5,10 @@
     -grade: quest provider grades a quest
 */
 
+use std::vec;
+
 use gtest::{ Log, Program, System };
+use parity_scale_codec::Encode;
 use quest_io::{ QuestEvent, QuestAction };
 const QUEST_ID: u64 = 1;
 const SELF_ID: u64 = 2;
@@ -82,6 +85,28 @@ fn submit_fail_double_submission() {
 
 // TODO: need to add a test for submitting pass a deadline
 
+#[test]
+fn publish_success() {
+    let sys = System::new();
+    init_quest(&sys);
+    let program = sys.get_program(QUEST_ID);
+
+    let quest = quest::QuestInfo {
+        entity_name: String::from("test quest entity"),
+        location: String::from("test quest location"),
+        communication_language: vec![String::from("English")],
+        communication_channel: String::from("Email"),
+        quest_name: String::from("test quest name"),
+        skill_badges: vec![String::from("test skill badge")],
+        max_claimers: 1,
+        description: String::from("test quest description"),
+        deadline: 0,
+    };
+
+    let encoded_quest: Vec<u8> = quest.encode();
+
+    program.send(SELF_ID, QuestAction::Publish(encoded_quest));
+}
 /*
 #[test]
 fn grade_success() {
