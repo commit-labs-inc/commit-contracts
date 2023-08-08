@@ -21,20 +21,22 @@ impl Metadata for ProgramMetadata {
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestAction {
     Claim(String),  // let user claim the quest
-    /* Submit(String), // let user submit the quest
-    Grade(ActorId, u8),  // let quest provider grade the quest */
+    Submit(String, String), // let user submit the quest
+    // Grade(ActorId, u8),  // let quest provider grade the quest
 }
 
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestEvent {
     Claimed,
-    /* Submitted,
-    Graded, */
+    Submitted,
+    // Graded,
     // TODO: move this to a separate enum later
     ErrorClaimerExists,
     UnknownError,
-    /* ErrorSubmitterNotExists,
-    ErrorNotQuestOwner, */
+    ErrorSubmitterNotExists,
+    ErrorAlreadySubmitted,
+    ErrorDeadlinePassed,
+    // ErrorNotQuestOwner,
 }
 
 pub struct Quests {
@@ -64,14 +66,23 @@ impl Quest {
         return QuestEvent::Claimed;
     }
 
-    /* // only existing claimers can submit to a quest
-    pub fn submit(&mut self, claimer: ActorId, submit: String) -> QuestEvent {
+    pub fn submit(&mut self, claimer: ActorId, submission: String) -> QuestEvent {
+        // only existing claimers can submit to a quest
         if !self.claimers.contains(&claimer) { return QuestEvent::ErrorSubmitterNotExists;}
-        self.claimer_submit.insert(claimer, submit);
+        // a claimer can only submit once 
+        if self.claimer_submit.get(&claimer) != Some(&String::from("No submission yet")) { 
+            return QuestEvent::ErrorAlreadySubmitted;
+        }
+        // a submission must within the deadline
+        /* if self.deadline > 0 && gstd::exec::block_timestamp() > self.deadline { 
+            return QuestEvent::ErrorDeadlinePassed;
+        } */
+        self.claimer_submit.insert(claimer, submission);
 
         return QuestEvent::Submitted;
     }
 
+    /*
     // only quest provider can grade a quest
     // only existing claimers can be graded
     pub fn grade(&mut self, msg_sender: ActorId, recipient: ActorId, grade: u8) -> QuestEvent {

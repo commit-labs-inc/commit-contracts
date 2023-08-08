@@ -44,29 +44,45 @@ fn claim_fail_non_exist_quest() {
     assert!(res.contains(&log));
 }
 
-/* #[test]
+#[test]
 fn submit_success() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
-    program.send(SELF_ID, QuestAction::Claim);
-    let res = program.send(SELF_ID, QuestAction::Submit(String::from("submission")));
+    program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
+    let res = program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
     let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Submitted);
     assert!(res.contains(&log));
 }
 
 // only exising claimers can submit to a quest
 #[test]
-fn submit_fail() {
+fn submit_fail_non_existing_claimer() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
     // submit without claim the quest first will fail
-    let res = program.send(SELF_ID, QuestAction::Submit(String::from("submission")));
+    let res = program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
     let log = Log::builder().dest(SELF_ID).payload(QuestEvent::ErrorSubmitterNotExists);
     assert!(res.contains(&log));
 }
 
+// a claimer can only submit to a quest once
+#[test]
+fn submit_fail_double_submission() {
+    let sys = System::new();
+    init_quest(&sys);
+    let program = sys.get_program(QUEST_ID);
+    program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
+    program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("submission")));
+    let res = program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
+    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::ErrorAlreadySubmitted);
+    assert!(res.contains(&log));
+}
+
+// TODO: need to add a test for submitting pass a deadline
+
+/*
 #[test]
 fn grade_success() {
     let sys = System::new();

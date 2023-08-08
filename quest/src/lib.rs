@@ -12,22 +12,23 @@ pub struct QuestInfo {
 
 #[no_mangle]
 extern "C" fn init() {
+    let _init_info: String = msg::load().expect("Failed to load init info");
     // For now, we'll initialize a quest map with a single quest for testing
+    let quest = Quest {
+        owner: msg::source(),
+        name: String::from("Test Quest"),
+        description: String::from("This is a test quest"),
+        deadline: 0,
+        claimers: Vec::new(),
+        claimer_submit: HashMap::new(),
+        claimer_grade: HashMap::new(),
+    };
+
+    let mut map = HashMap::new();
+    // TODO: quest id should be generated from the hash of the quest in the future
+    map.insert(String::from("a fake quest id for testing only"), quest);
+
     unsafe {
-        let quest = Quest {
-            owner: msg::source(),
-            name: String::from("Test Quest"),
-            description: String::from("This is a test quest"),
-            deadline: 0,
-            claimers: Vec::new(),
-            claimer_submit: HashMap::new(),
-            claimer_grade: HashMap::new(),
-        };
-
-        let mut map = HashMap::new();
-        // TODO: quest id should be generated from the hash of the quest in the future
-        map.insert(String::from("a fake quest id for testing only"), quest);
-
         QUESTS = Some(Quests {
             map,
         });
@@ -69,19 +70,38 @@ extern "C" fn handle() {
                 }
             }
         },
-        /* QuestAction::Submit(s) => {
-            match quest.submit(msg::source(), s) {
-                QuestEvent::Submitted => {
-                    msg::reply(QuestEvent::Submitted, 0).expect("Failed to emit submit event");
+        QuestAction::Submit(quest_id, submission) => {
+            match quests.map.get_mut(&quest_id) {
+                Some(quest) => {
+                    match quest.submit(msg::source(), submission) {
+                        QuestEvent::Submitted => {
+                            debug!("current submission list is: {:?}", quest.claimer_submit);
+                            msg::reply(QuestEvent::Submitted, 0).expect("Failed to emit submit event");
+                        },
+                        QuestEvent::ErrorSubmitterNotExists => {
+                            debug!("Submitter not found");
+                            msg::reply(QuestEvent::ErrorSubmitterNotExists, 0).expect("Failed to emit submit error event");
+                        },
+                        QuestEvent::ErrorAlreadySubmitted => {
+                            debug!("Already submitted");
+                            msg::reply(QuestEvent::ErrorAlreadySubmitted, 0).expect("Failed to emit submit error event");
+                        },
+                        QuestEvent::ErrorDeadlinePassed => {
+                            debug!("Deadline passed");
+                            msg::reply(QuestEvent::ErrorDeadlinePassed, 0).expect("Failed to emit submit error event");
+                        }
+                        _ => {
+                            debug!("Unknown error");
+                        }
+                    }
                 },
-                QuestEvent::ErrorSubmitterNotExists => {
-                    msg::reply(QuestEvent::ErrorSubmitterNotExists, 0).expect("Failed to emit submit error event");
-                },
-                _ => {
-                    debug!("Unknown error");
+                None => {
+                    debug!("Quest not found");
+                    msg::reply(QuestEvent::UnknownError, 0).expect("Failed to emit unknown error event");
                 }
             }
         },
+        /*
         QuestAction::Grade(recipient, grades) => {
             match quest.grade(msg::source(), recipient, grades) {
                 QuestEvent::Graded => {
