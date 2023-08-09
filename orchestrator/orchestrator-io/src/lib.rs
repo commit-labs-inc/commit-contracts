@@ -1,5 +1,5 @@
 #![no_std]
-use gstd::{prelude::*, ActorId};
+use gstd::{prelude::*, ActorId, msg};
 use codec::{Decode, Encode};
 use gmeta::{In, InOut, Metadata};
 use scale_info::TypeInfo;
@@ -10,46 +10,65 @@ pub struct ProgramMetadata;
 impl Metadata for ProgramMetadata {
     // the init logic will receive a JSON string from the factory contract contains the quest information
     type Init = In<String>;
-    type Handle = InOut<OrchestratorAction,OrchestratorEvent>;
+    type Handle = InOut<OrchestratorAction, OrchestratorEvent>;
     type Reply = ();
     type Others = ();
     type Signal = ();
     type State = String;
 }
 
-#[derive(Encode, Decode, TypeInfo)]
-pub enum OrchestratorAction {
-    // route action (String) for an actor (ActorId)
-    Route(String, ActorId),
-}
-
-#[derive(Encode, Decode, TypeInfo)]
-pub enum OrchestratorEvent {
-    // the event to indicate an action has been routed
-    Routed(String),
-    ErrFailedToRoute,
-}
-
 pub struct Orchestrator {
-    // routes is a map from action (String) to a contract (ActorId)
+    pub owner: ActorId,
     pub routes: HashMap<String, ActorId>,
 }
 
 impl Orchestrator {
-    // TODO: need to figure out a way to pass routes in a more elegant way
-    pub fn route(&mut self, action: String, actor: String) -> OrchestratorEvent {
-        // 1. check if the action is in the routes map
-        if !self.routes.contains_key(&action) {
-            return OrchestratorEvent::ErrFailedToRoute;
-        }
-        // 2. route the action to the contract
-        let contract_id = self.routes.get(&action).unwrap().to_owned();
-        let res = gstd::msg::send(contract_id.clone(), action.clone()+ "+" + &actor, 0);
-        if res.is_err() {
-            return OrchestratorEvent::ErrFailedToRoute;
-        }
-        gstd::debug!("Routing action: {} to contract: {:?}", action.clone(), contract_id);
-        // 3. return the event
-        return OrchestratorEvent::Routed(action);
+    pub fn add_route(&mut self, route: String, actor_id: ActorId) -> OrchestratorEvent {
+        self.routes.insert(route.clone(), actor_id.clone());
+        OrchestratorEvent::NewRouteCreated(route, actor_id)
     }
+
+    pub fn delete_route(&mut self, route: String) -> OrchestratorEvent {
+        self.routes.remove(&route);
+        OrchestratorEvent::RouteRemoved(route)
+    }
+
+    pub fn route(&self, origin: ActorId, route: String, original_payload: Vec<u8>) -> OrchestratorEvent {
+        let destination = self.routes.get(&route).expect("route not found");
+        // send both the origin's id and the original payload to the destination
+        let payload = Payload {
+            origin,
+            payload: original_payload,
+        }.encode();
+
+        if let Ok(_) = msg::send(destination.to_owned(), payload, 0) {
+            OrchestratorEvent::RoutingSuccess
+        } else {
+            OrchestratorEvent::RoutingFailed
+        }
+    }
+}
+
+#[derive(Encode)]
+#[codec(crate = gstd::codec)]
+pub struct Payload {
+    pub origin: ActorId,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug)]
+pub enum OrchestratorAction {
+    AddRoute(String, ActorId), // route (String) to a contract (ActorId)
+    DeleteRoute(String),
+    Route(ActorId, String, Vec<u8>), // ActorId is the action initiator, String is the route, Vec<u8> is the payload
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug)]
+pub enum OrchestratorEvent {
+    NewRouteCreated(String, ActorId), // route (String) to a contract (ActorId)
+    RouteRemoved(String),
+    RouteDeleted,
+    RoutingSuccess,
+    RoutingFailed,
+    NotOwner,
 }
