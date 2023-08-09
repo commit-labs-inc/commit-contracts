@@ -72,10 +72,10 @@ extern "C" fn handle() {
             // this assumes the claimer is calling this contract directly, without orchestrator in between
             match quests.map.get_mut(&quest_id) {
                 Some(quest) => {
-                    match quest.claim(msg::source()) {
-                        QuestEvent::Claimed => {
+                    match quest.claim(quest_id, msg::source()) {
+                        QuestEvent::Claimed(quest_id, claimer) => {
                             debug!("current claimer list is: {:?}", quest.claimers);
-                            msg::reply(QuestEvent::Claimed, 0).expect("Failed to emit claim event");
+                            msg::reply(QuestEvent::Claimed(quest_id, claimer), 0).expect("Failed to emit claim event");
                         },
                         QuestEvent::ErrorClaimerExists => {
                             msg::reply(QuestEvent::ErrorClaimerExists, 0).expect("Failed to emit claim error event");
@@ -94,10 +94,10 @@ extern "C" fn handle() {
         QuestAction::Submit(quest_id, submission) => {
             match quests.map.get_mut(&quest_id) {
                 Some(quest) => {
-                    match quest.submit(msg::source(), submission) {
-                        QuestEvent::Submitted => {
+                    match quest.submit(quest_id, msg::source(), submission) {
+                        QuestEvent::Submitted(quest_id, claimer) => {
                             debug!("current submission list is: {:?}", quest.claimer_submit);
-                            msg::reply(QuestEvent::Submitted, 0).expect("Failed to emit submit event");
+                            msg::reply(QuestEvent::Submitted(quest_id, claimer), 0).expect("Failed to emit submit event");
                         },
                         QuestEvent::ErrorSubmitterNotExists => {
                             debug!("Submitter not found");
@@ -126,6 +126,7 @@ extern "C" fn handle() {
             // 0. check if the publisher has been validated
             // TODO: write a real validation logic
             debug!("provider validated!");
+            debug!("quest info is: {:?}", quest_info);
             // 1. decode quest info into a struct
             let decoded_quest_info = decode_quest(quest_info).expect("Failed to decode quest info");
             // 2. create a new quest with the decoded info + msg::source() as owner
@@ -151,23 +152,38 @@ extern "C" fn handle() {
             // 4. emit a publish event
             msg::reply(QuestEvent::Published(quest_id), 0).expect("Failed to emit publish event");
         }
-        /*
-        QuestAction::Grade(recipient, grades) => {
-            match quest.grade(msg::source(), recipient, grades) {
-                QuestEvent::Graded => {
-                    msg::reply(QuestEvent::Graded, 0).expect("Failed to emit grade event");
+        QuestAction::Grade(quest_id, recipient, grades) => {
+            match quests.map.get_mut(&quest_id) {
+                Some(quest) => {
+                    // TODO: current way of get msg sender address is not compatable with orchestrator structure
+                    match quest.grade(msg::source(), quest_id, recipient, grades) {
+                        QuestEvent::Graded(quest_id, recipient) => {
+                            debug!("Quest graded!");
+                            msg::reply(QuestEvent::Graded(quest_id, recipient), 0).expect("Failed to emit grade event");
+                        },
+                        QuestEvent::ErrorNotQuestOwner => {
+                            debug!("Not quest owner");
+                            msg::reply(QuestEvent::ErrorNotQuestOwner, 0).expect("Failed to emit grade error event");
+                        },
+                        QuestEvent::ErrorSubmitterNotExists => {
+                            debug!("Submitter not found");
+                            msg::reply(QuestEvent::ErrorSubmitterNotExists, 0).expect("Failed to emit grade error event");
+                        },
+                        QuestEvent::ErrorAlreadyGraded => {
+                            debug!("Already graded");
+                            msg::reply(QuestEvent::ErrorAlreadyGraded, 0).expect("Failed to emit grade error event");
+                        },
+                        _ => {
+                            debug!("Unknown error");
+                        }
+                    }
                 },
-                QuestEvent::ErrorNotQuestOwner => {
-                    msg::reply(QuestEvent::ErrorNotQuestOwner, 0).expect("Failed to emit grade error event");
-                },
-                QuestEvent::ErrorSubmitterNotExists => {
-                    msg::reply(QuestEvent::ErrorSubmitterNotExists, 0).expect("Failed to emit grade error event");
-                },
-                _ => {
-                    debug!("Unknown error");
+                None => {
+                    debug!("Quest not found");
+                    msg::reply(QuestEvent::UnknownError, 0).expect("Failed to emit unknown error event");
                 }
             }
-        }, */
+        },
     }
 }
 

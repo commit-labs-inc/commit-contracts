@@ -12,7 +12,7 @@ use parity_scale_codec::Encode;
 use quest_io::{ QuestEvent, QuestAction };
 const QUEST_ID: u64 = 1;
 const SELF_ID: u64 = 2;
-// const NON_EXIST_ID: u64 = 3;
+const NON_EXIST_ID: u64 = 3;
 
 #[test]
 fn claim_success() {
@@ -20,7 +20,7 @@ fn claim_success() {
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
     let res = program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
-    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Claimed);
+    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Claimed(String::from("a fake quest id for testing only"), SELF_ID.into()));
     assert!(res.contains(&log));
 }
 
@@ -54,7 +54,7 @@ fn submit_success() {
     let program = sys.get_program(QUEST_ID);
     program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
     let res = program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
-    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Submitted);
+    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Submitted(String::from("a fake quest id for testing only"), SELF_ID.into()));
     assert!(res.contains(&log));
 }
 
@@ -107,25 +107,27 @@ fn publish_success() {
 
     program.send(SELF_ID, QuestAction::Publish(encoded_quest));
 }
-/*
+
 #[test]
 fn grade_success() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
-    program.send(SELF_ID, QuestAction::Claim);
-    let res = program.send(SELF_ID, QuestAction::Grade(SELF_ID.into(), 100));
-    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Graded);
+    program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
+    program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
+    let res = program.send(SELF_ID, QuestAction::Grade(String::from("a fake quest id for testing only"), SELF_ID.into(), 1));
+    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::Graded(String::from("a fake quest id for testing only"), SELF_ID.into()));
     assert!(res.contains(&log));
 }
 
-// only quest owner can grade a quest
 #[test]
-fn grade_fail_not_grader() {
+fn grade_fail_not_owner() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
-    let res = program.send(NON_EXIST_ID, QuestAction::Grade(NON_EXIST_ID.into(), 100));
+    program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
+    program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
+    let res = program.send(NON_EXIST_ID, QuestAction::Grade(String::from("a fake quest id for testing only"), NON_EXIST_ID.into(), 1));
     let log = Log::builder().dest(NON_EXIST_ID).payload(QuestEvent::ErrorNotQuestOwner);
     assert!(res.contains(&log));
 }
@@ -135,10 +137,23 @@ fn grade_fail_recipient_not_exists() {
     let sys = System::new();
     init_quest(&sys);
     let program = sys.get_program(QUEST_ID);
-    let res = program.send(SELF_ID, QuestAction::Grade(NON_EXIST_ID.into(), 100));
+    let res = program.send(SELF_ID, QuestAction::Grade(String::from("a fake quest id for testing only"), NON_EXIST_ID.into(), 1));
     let log = Log::builder().dest(SELF_ID).payload(QuestEvent::ErrorSubmitterNotExists);
     assert!(res.contains(&log));
-} */
+}
+
+#[test]
+fn grade_fail_grade_twice() {
+    let sys = System::new();
+    init_quest(&sys);
+    let program = sys.get_program(QUEST_ID);
+    program.send(SELF_ID, QuestAction::Claim(String::from("a fake quest id for testing only")));
+    program.send(SELF_ID, QuestAction::Submit(String::from("a fake quest id for testing only"), String::from("link to submission")));
+    program.send(SELF_ID, QuestAction::Grade(String::from("a fake quest id for testing only"), SELF_ID.into(), 1));
+    let res = program.send(SELF_ID, QuestAction::Grade(String::from("a fake quest id for testing only"), SELF_ID.into(), 1));
+    let log = Log::builder().dest(SELF_ID).payload(QuestEvent::ErrorAlreadyGraded);
+    assert!(res.contains(&log));
+}
 
 fn init_quest(sys: &System) {
     sys.init_logger();

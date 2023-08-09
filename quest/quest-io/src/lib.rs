@@ -20,18 +20,18 @@ impl Metadata for ProgramMetadata {
 // possible actions for an individual quest
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestAction {
-    Claim(String),          // let user claim the quest
-    Submit(String, String), // let user submit the quest
-    Publish(Vec<u8>),        // let quest provider publish a new quest, the String will be a JSON string
-    // Grade(ActorId, u8),  // let quest provider grade the quest
+    Claim(String),                  // let user claim the quest
+    Submit(String, String),         // let user submit the quest
+    Publish(Vec<u8>),               // let quest provider publish a new quest, the String will be a JSON string
+    Grade(String, ActorId, u8),     // String is the quest id, ActorId is the claimer id, u8 is the grade
 }
 
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestEvent {
-    Claimed,
-    Submitted,
-    Published(String), // String is the quest id
-    // Graded,
+    Claimed(String, ActorId),   // String is the quest id, ActorId is the claimer id
+    Submitted(String, ActorId), // String is the quest id, ActorId is the claimer id
+    Published(String),          // String is the quest id
+    Graded(String, ActorId),    // String is the quest id, ActorId is the claimer id
     // TODO: move this to a separate enum later
     ErrorQuestExists,
     ErrorProviderNotValidated,
@@ -40,7 +40,8 @@ pub enum QuestEvent {
     ErrorSubmitterNotExists,
     ErrorAlreadySubmitted,
     ErrorDeadlinePassed,
-    // ErrorNotQuestOwner,
+    ErrorNotQuestOwner,
+    ErrorAlreadyGraded
 }
 
 pub struct Quests {
@@ -79,40 +80,42 @@ pub struct Quest {
 
 impl Quest {
     // career aspirants cannot claim a quest twice
-    pub fn claim(&mut self, claimer: ActorId) -> QuestEvent {
+    pub fn claim(&mut self, quest_id: String, claimer: ActorId) -> QuestEvent {
         if self.claimers.contains(&claimer) { return QuestEvent::ErrorClaimerExists;}
-        self.claimers.push(claimer);
-        self.claimer_submit.insert(claimer, String::from("No submission yet"));
-        self.claimer_grade.insert(claimer, 0);
+        self.claimers.push(claimer.clone());
 
-        return QuestEvent::Claimed;
+        // claimed quest_id from claimer
+        return QuestEvent::Claimed(quest_id, claimer);
     }
 
-    pub fn submit(&mut self, claimer: ActorId, submission: String) -> QuestEvent {
+    pub fn submit(&mut self, quest_id: String, claimer: ActorId, submission: String) -> QuestEvent {
         // only existing claimers can submit to a quest
         if !self.claimers.contains(&claimer) { return QuestEvent::ErrorSubmitterNotExists;}
         // a claimer can only submit once 
-        if self.claimer_submit.get(&claimer) != Some(&String::from("No submission yet")) { 
+        if self.claimer_submit.contains_key(&claimer) { 
             return QuestEvent::ErrorAlreadySubmitted;
         }
         // a submission must within the deadline
         /* if self.deadline > 0 && gstd::exec::block_timestamp() > self.deadline { 
             return QuestEvent::ErrorDeadlinePassed;
         } */
-        self.claimer_submit.insert(claimer, submission);
+        self.claimer_submit.insert(claimer.clone(), submission);
 
-        return QuestEvent::Submitted;
+        return QuestEvent::Submitted(quest_id, claimer);
     }
-
-    /*
-    // only quest provider can grade a quest
-    // only existing claimers can be graded
-    pub fn grade(&mut self, msg_sender: ActorId, recipient: ActorId, grade: u8) -> QuestEvent {
+    
+    // TODO: grade should be set to a dedicated type
+    pub fn grade(&mut self, msg_sender: ActorId, quest_id: String, recipient: ActorId, grade: u8) -> QuestEvent {
+        // only quest provider can grade a quest
         if self.owner != msg_sender { return QuestEvent::ErrorNotQuestOwner;}
-        if !self.claimers.contains(&recipient) { return QuestEvent::ErrorSubmitterNotExists;}
+        // only existing claimers with a submission can be graded
+        if !self.claimers.contains(&recipient) || self.claimer_submit.get(&recipient) == None { return QuestEvent::ErrorSubmitterNotExists;}
+        // a submitter can only be graded once
+        if self.claimer_grade.contains_key(&recipient) { return QuestEvent::ErrorAlreadyGraded;}
+        
         self.claimer_grade.insert(recipient, grade);
 
-        return QuestEvent::Graded;
-    } */
+        return QuestEvent::Graded(quest_id, recipient);
+    }
 }
 
