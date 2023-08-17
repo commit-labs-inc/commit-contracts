@@ -3,6 +3,17 @@
 version = 3
 
 [[package]]
+name = "account-io"
+version = "0.1.0"
+dependencies = [
+ "gmeta",
+ "gstd",
+ "hashbrown 0.13.2",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1106,6 +1117,7 @@ dependencies = [
 name = "quest"
 version = "0.1.0"
 dependencies = [
+ "account-io",
  "gear-wasm-builder",
  "gstd",
  "gtest",
@@ -1119,6 +1131,7 @@ dependencies = [
 name = "quest-io"
 version = "0.1.0"
 dependencies = [
+ "account-io",
  "gmeta",
  "gstd",
  "hashbrown 0.13.2",

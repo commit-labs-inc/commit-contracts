@@ -2,13 +2,13 @@
 use gstd::{prelude::*, ActorId};
 use codec::{Decode, Encode};
 use gmeta::{In, InOut, Metadata};
+use account_io::{QuestId, Badge};
 use scale_info::TypeInfo;
 use hashbrown::HashMap;
 
 pub struct ProgramMetadata;
 
 impl Metadata for ProgramMetadata {
-    // the init logic will receive a JSON string from the factory contract contains the quest information
     type Init = In<String>;
     type Handle = InOut<QuestAction, QuestEvent>;
     type Reply = ();
@@ -17,105 +17,280 @@ impl Metadata for ProgramMetadata {
     type State = String;
 }
 
-// possible actions for an individual quest
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestAction {
-    Claim(String),                  // let user claim the quest
-    Submit(String, String),         // let user submit the quest
-    Publish(Vec<u8>),               // let quest provider publish a new quest, the String will be a JSON string
-    Grade(String, ActorId, u8),     // String is the quest id, ActorId is the claimer id, u8 is the grade
+    Claim {
+        quest_id: QuestId,
+    },
+    Submit {
+        quest_id: QuestId,
+        submission: Submission,
+    },
+    Publish {
+        quest: Quest,
+    },               
+    Grade {
+        qeust_id: QuestId,
+        claimer: ActorId,
+        grades: Grading,
+    },
 }
 
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestEvent {
-    Claimed(String, ActorId),   // String is the quest id, ActorId is the claimer id
-    Submitted(String, ActorId), // String is the quest id, ActorId is the claimer id
-    Published(String),          // String is the quest id
-    Graded(String, ActorId),    // String is the quest id, ActorId is the claimer id
-    // TODO: move this to a separate enum later
-    ErrorQuestExists,
-    ErrorProviderNotValidated,
-    ErrorClaimerExists,
-    UnknownError,
-    ErrorSubmitterNotExists,
-    ErrorAlreadySubmitted,
-    ErrorDeadlinePassed,
-    ErrorNotQuestOwner,
-    ErrorAlreadyGraded
+    QuestPublished {
+        recruiter: ActorId,
+        quest_id: QuestId,
+    },
+    QuestClaimed {
+        seeker: ActorId,
+        quest_id: QuestId,
+    },
+    SubmissionReceived {
+        seeker: ActorId,
+        quest_id: QuestId,
+    },
+    QuestGraded {
+        quest_id: QuestId,
+        seeker: ActorId,
+    },
+    
+    PublishError {
+        recruiter: ActorId,
+        time: u32, // gstd::exec::block_height()
+    },
+    ClaimError {
+        seeker: ActorId,
+        quest_id: QuestId,
+        time: u32, // gstd::exec::block_height()
+    },
+    SubmitError {
+        seeker: ActorId,
+        quest_id: QuestId,
+        time: u32, // gstd::exec::block_height()
+    },
+    GradeError {
+        recruiter: ActorId,
+        quest_id: QuestId,
+        time: u32, // gstd::exec::block_height()
+    },
+}
+
+#[derive(Encode, Decode, TypeInfo, Clone)]
+pub struct Submission {
+    pub external_link: String,
+}
+
+#[derive(Encode, Decode, TypeInfo, Clone)]
+pub enum Grading {
+    Accepted,
+    GenerallyGood,
+    NeedImprovements,
+}
+
+#[derive(Encode, Decode, TypeInfo, Clone)]
+pub struct Quest {                       
+    pub owner: ActorId,                             // id of the quest provider
+    pub entity_name: Name,                        // name of the entity that provides the quest
+    pub location: Location,                            // location of the entity
+    pub communication_language: Vec<Language>,        // list of languages the entity can communicate in
+    // TODO: need to change this into supporting multiple channels in the future
+    pub communication_channel: Vec<Channel>,              // email that the entity can be reached at
+    pub quest_name: Name,                         
+    pub description: Description,
+    // TODO: need to provide NFT badges in the future
+    pub skill_badges: Vec<Badge>,                 // list of skill badges that will be provided upon completion
+    pub max_claimers: ClaimerNum,                            // max number of claimers, 0 indicates no limit
+    pub deadline: Deadline,                              // gstd::exec::block_timestamp() 
+    pub claimers: Vec<ActorId>,                    // list of claimers
+    pub claimer_submit: Vec<(ActorId, Submission)>,   // claimer id -> submitted results
+    pub claimer_grade: Vec<(ActorId, Grading)>,        // use index of ActorId in claimers to index the grades, for now 
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub struct Name(String);
+
+impl Name {
+    pub fn new(name: String) -> Self {
+        if name.len() > 20 {
+            panic!("Name cannot be longer than 20 characters");
+        }
+        Self(name)
+    }
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub enum Location {
+    NorthAmerica,
+    Asia,
+    Europe,
+    Antarctica,
+    Africa,
+    SouthAmerica,
+    Australia,
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub enum Language {
+    English,
+    MandarinChinese,
+    Hindi,
+    Japanese,
+    Spanish,
+    French,
+    Arabic,
+    Russian,
+    German,
+    Turkish,
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub enum Channel {
+    Email {
+        address: String,
+    },
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub struct Description(String);
+
+impl Description {
+    pub fn new(description: String) -> Self {
+        if description.len() > 1000 {
+            panic!("Description cannot be longer than 1000 characters");
+        }
+        Self(description)
+    }
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub struct ClaimerNum(u8);
+
+impl ClaimerNum {
+    pub fn new(num: u8) -> Self {
+        if num > 100 {
+            panic!("Max number of concurrent claimers cannot be larger than 100");
+        }
+        Self(num)
+    }
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub struct Deadline(u32);
+
+impl Deadline {
+    pub fn new(deadline: u32) -> Self {
+        if deadline < gstd::exec::block_height() {
+            panic!("Deadline cannot be earlier than current timestamp");
+        }
+        Self(deadline)
+    }
 }
 
 pub struct Quests {
     // String is the id of the quest
     // TODO: need to change String into a dedicated type
-    pub map: HashMap<String, Quest>,
+    pub quests: HashMap<QuestId, Quest>,
+    pub claimers_quests: HashMap<ActorId, Vec<QuestId>>,
 }
 
 impl Quests {
-    pub fn publish(&mut self, quest_id: String, quest: Quest) -> QuestEvent {
-        // same provider cannot publish the same quest twice
-        if self.map.contains_key(&quest_id) { return QuestEvent::ErrorQuestExists;}
-        self.map.insert(quest_id.clone(), quest);
-        return QuestEvent::Published(quest_id);
-    }
-}
+    // TODO: EVERY function needs a much stricter access control!
 
-#[derive(Debug)]
-pub struct Quest {                                
-    pub owner: ActorId,                             // id of the quest provider
-    pub entity_name: String,                        // name of the entity that provides the quest
-    pub location: String,                           // location of the entity
-    pub communication_language: Vec<String>,        // list of languages the entity can communicate in
-    // TODO: need to change this into supporting multiple channels in the future
-    pub communication_channel: String,              // email that the entity can be reached at
-    pub quest_name: String,                         
-    pub description: String,
-    // TODO: need to provide NFT badges in the future
-    pub skill_badges: Vec<String>,                  // list of skill badges that will be provided upon completion
-    pub max_claimers: u8,                           // max number of claimers, 0 indicates no limit
-    pub deadline: u64,                              // gstd::exec::block_timestamp() 
-    pub claimers: Vec<ActorId>,                     // list of claimers
-    pub claimer_submit: HashMap<ActorId, String>,   // claimer id -> submitted results
-    pub claimer_grade: HashMap<ActorId, u8>,        // use index of ActorId in claimers to index the grades, for now
-}
-
-impl Quest {
-    // career aspirants cannot claim a quest twice
-    pub fn claim(&mut self, quest_id: String, claimer: ActorId) -> QuestEvent {
-        if self.claimers.contains(&claimer) { return QuestEvent::ErrorClaimerExists;}
-        self.claimers.push(claimer.clone());
-
-        // claimed quest_id from claimer
-        return QuestEvent::Claimed(quest_id, claimer);
-    }
-
-    pub fn submit(&mut self, quest_id: String, claimer: ActorId, submission: String) -> QuestEvent {
-        // only existing claimers can submit to a quest
-        if !self.claimers.contains(&claimer) { return QuestEvent::ErrorSubmitterNotExists;}
-        // a claimer can only submit once 
-        if self.claimer_submit.contains_key(&claimer) { 
-            return QuestEvent::ErrorAlreadySubmitted;
+    pub fn publish(&mut self, quest: Quest, quest_id: QuestId) -> QuestEvent {
+        if self.quests.contains_key(&quest_id) {
+            return QuestEvent::PublishError {
+                recruiter: quest.owner,
+                time: gstd::exec::block_height(),
+            }
         }
-        // a submission must within the deadline
-        /* if self.deadline > 0 && gstd::exec::block_timestamp() > self.deadline { 
-            return QuestEvent::ErrorDeadlinePassed;
-        } */
-        self.claimer_submit.insert(claimer.clone(), submission);
 
-        return QuestEvent::Submitted(quest_id, claimer);
+        let owner = quest.owner;
+        self.quests.insert(quest_id.clone(), quest);
+        QuestEvent::QuestPublished {
+            recruiter: owner,
+            quest_id,
+        }
     }
-    
-    // TODO: grade should be set to a dedicated type
-    pub fn grade(&mut self, msg_sender: ActorId, quest_id: String, recipient: ActorId, grade: u8) -> QuestEvent {
-        // only quest provider can grade a quest
-        if self.owner != msg_sender { return QuestEvent::ErrorNotQuestOwner;}
-        // only existing claimers with a submission can be graded
-        if !self.claimers.contains(&recipient) || self.claimer_submit.get(&recipient) == None { return QuestEvent::ErrorSubmitterNotExists;}
-        // a submitter can only be graded once
-        if self.claimer_grade.contains_key(&recipient) { return QuestEvent::ErrorAlreadyGraded;}
-        
-        self.claimer_grade.insert(recipient, grade);
 
-        return QuestEvent::Graded(quest_id, recipient);
+    pub fn claim(&mut self, seeker: ActorId, quest_id: QuestId) -> QuestEvent {
+        if !self.quests.contains_key(&quest_id) {
+            return QuestEvent::ClaimError {
+                seeker,
+                quest_id,
+                time: gstd::exec::block_height(),
+            }
+        }
+        // 1. get the corresponding quest
+        let quest = self.quests.get_mut(&quest_id).unwrap();
+        // 2. add claimer to the quest's claimers list
+        quest.claimers.push(seeker.clone());
+        // 3. add claimer to the quest's claimer_quest mapping list
+        self.claimers_quests.entry(seeker).or_insert(Vec::new()).push(quest_id.clone());
+        QuestEvent::QuestClaimed {
+            seeker,
+            quest_id,
+        }
+    }
+
+    pub fn submit(&mut self, seeker: ActorId, quest_id: QuestId, submission: Submission) -> QuestEvent {
+        if !self.quests.contains_key(&quest_id) {
+            return QuestEvent::SubmitError {
+                seeker,
+                quest_id,
+                time: gstd::exec::block_height(),
+            }
+        }
+        // 1. get the corresponding quest
+        let quest = self.quests.get_mut(&quest_id).unwrap();
+        // 2. add submission to the quest's claimer_submit mapping list
+        quest.claimer_submit.push((seeker.clone(), submission));
+        QuestEvent::SubmissionReceived {
+            seeker,
+            quest_id,
+        }
+    }
+
+    pub fn grade(&mut self, seeker: ActorId, quest_id: QuestId, grades: Grading) -> QuestEvent {
+        if !self.quests.contains_key(&quest_id) {
+            return QuestEvent::GradeError {
+                recruiter: seeker,
+                quest_id,
+                time: gstd::exec::block_height(),
+            }
+        }
+        // 1. get the corresponding quest
+        let quest = self.quests.get_mut(&quest_id).unwrap();
+        // 2. add grading to the quest's claimer_grade mapping list
+        quest.claimer_grade.push((seeker.clone(), grades));
+        QuestEvent::QuestGraded {
+            quest_id,
+            seeker,
+        }
+    }
+
+    // This function is used to fetch all the quests that are claimed by a seeker
+    pub fn fetch_seeker(&mut self, seeker: ActorId) -> Vec<Quest> {
+        let mut quests = Vec::new();
+        if !self.claimers_quests.contains_key(&seeker) {
+            return quests;
+        }
+        let quest_ids = self.claimers_quests.get(&seeker).unwrap();
+        for quest_id in quest_ids {
+            let quest = self.quests.get(quest_id).unwrap();
+            quests.push(quest.clone());
+        }
+        quests
+    }
+
+    // This function is used to fetch all the quests that are published under the same owner
+    pub fn fetch_recruiter(&mut self, recruiter: ActorId) -> Vec<Quest> {
+        let mut quests = Vec::new();
+        for quest in self.quests.values() {
+            if quest.owner == recruiter {
+                quests.push(quest.clone());
+            }
+        }
+        quests
     }
 }
-

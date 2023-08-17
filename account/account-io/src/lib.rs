@@ -112,7 +112,7 @@ pub enum Status {
     Closed,
 }
 
-#[derive(Encode, Decode, Clone, TypeInfo, PartialEq, Eq)]
+#[derive(Encode, Decode, Clone, TypeInfo, PartialEq, Eq, Hash)]
 pub struct QuestId(String);
 
 impl QuestId {
