@@ -4,7 +4,6 @@ use codec::{Decode, Encode};
 use gmeta::{In, InOut, Metadata};
 use account_io::{QuestId, Badge};
 use scale_info::TypeInfo;
-use hashbrown::HashMap;
 
 pub struct ProgramMetadata;
 
@@ -14,7 +13,7 @@ impl Metadata for ProgramMetadata {
     type Reply = ();
     type Others = ();
     type Signal = ();
-    type State = String;
+    type State = Quests;
 }
 
 #[derive(Encode, Decode, TypeInfo)]
@@ -187,11 +186,12 @@ impl Deadline {
     }
 }
 
+#[derive(Encode, Decode, TypeInfo)]
 pub struct Quests {
     // String is the id of the quest
     // TODO: need to change String into a dedicated type
-    pub quests: HashMap<QuestId, Quest>,
-    pub claimers_quests: HashMap<ActorId, Vec<QuestId>>,
+    pub quests: BTreeMap<QuestId, Quest>,
+    pub claimers_quests: BTreeMap<ActorId, Vec<QuestId>>,
 }
 
 impl Quests {
@@ -267,30 +267,5 @@ impl Quests {
             quest_id,
             seeker,
         }
-    }
-
-    // This function is used to fetch all the quests that are claimed by a seeker
-    pub fn fetch_seeker(&mut self, seeker: ActorId) -> Vec<Quest> {
-        let mut quests = Vec::new();
-        if !self.claimers_quests.contains_key(&seeker) {
-            return quests;
-        }
-        let quest_ids = self.claimers_quests.get(&seeker).unwrap();
-        for quest_id in quest_ids {
-            let quest = self.quests.get(quest_id).unwrap();
-            quests.push(quest.clone());
-        }
-        quests
-    }
-
-    // This function is used to fetch all the quests that are published under the same owner
-    pub fn fetch_recruiter(&mut self, recruiter: ActorId) -> Vec<Quest> {
-        let mut quests = Vec::new();
-        for quest in self.quests.values() {
-            if quest.owner == recruiter {
-                quests.push(quest.clone());
-            }
-        }
-        quests
     }
 }

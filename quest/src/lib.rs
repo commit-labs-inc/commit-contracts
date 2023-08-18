@@ -11,8 +11,8 @@ extern "C" fn init() {
 
     unsafe {
         QUESTS = Some(Quests { 
-            quests: HashMap::new(), 
-            claimers_quests: HashMap::new(), 
+            quests: BTreeMap::new(), 
+            claimers_quests: BTreeMap::new(), 
         });
     }
 
@@ -51,4 +51,15 @@ extern "C" fn handle() {
             msg::reply(grade_event, 0).expect("Failed to reply grade event");
         },
     }
+}
+
+#[no_mangle]
+extern "C" fn state() {
+    let quests = unsafe {
+        QUESTS.get_or_insert(Quests {
+            quests: BTreeMap::new(),
+            claimers_quests: BTreeMap::new(),
+        })
+    };
+    msg::reply(quests, 0).expect("Failed to share state");
 }

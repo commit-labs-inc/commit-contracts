@@ -640,8 +640,19 @@ source = "git+https://github.com/gear-tech/gear.git?rev=946ac47#946ac47439c624dd
 dependencies = [
  "blake2-rfc",
  "derive_more",
+ "gmeta-codegen",
  "hex",
  "scale-info",
+]
+
+[[package]]
+name = "gmeta-codegen"
+version = "0.1.0"
+source = "git+https://github.com/gear-tech/gear.git?rev=946ac47#946ac47439c624dd002e3111dfff73d0c7aabbb9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.25",
 ]
 
 [[package]]
@@ -1137,6 +1148,16 @@ dependencies = [
  "hashbrown 0.13.2",
  "parity-scale-codec",
  "scale-info",
+]
+
+[[package]]
+name = "quest-state"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gmeta",
+ "gstd",
+ "quest-io",
 ]
 
 [[package]]
