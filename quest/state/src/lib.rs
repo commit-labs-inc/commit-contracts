@@ -7,7 +7,7 @@ use quest_io::*;
 pub mod metafns {
     pub type State = <ProgramMetadata as Metadata>::State;
 
-    pub fn seeker_state(state: State, actor: ActorId, role: u8) -> Vec<Quest> {
+    pub fn get_state(state: State, actor: ActorId, role: u8) -> Vec<Quest> {
         match role {
             0 => {
                 let mut quests = Vec::new();
@@ -34,5 +34,13 @@ pub mod metafns {
             },
             _ => Vec::new(),
         }
+    }
+
+    pub fn get_all_quests(state: State) -> Vec<Quest> {
+        let mut quests = Vec::new();
+        for quest in state.quests.iter() {
+            quests.push(quest.1.clone());
+        }
+        quests
     }
 }

@@ -95,11 +95,13 @@ pub struct Quest {
     pub communication_language: Vec<Language>,        // list of languages the entity can communicate in
     // TODO: need to change this into supporting multiple channels in the future
     pub communication_channel: Vec<Channel>,              // email that the entity can be reached at
+    pub occupation: Vec<Occupation>,                        // list of occupations that the entity is looking for
     pub quest_name: Name,                         
     pub description: Description,
     // TODO: need to provide NFT badges in the future
     pub skill_badges: Vec<Badge>,                 // list of skill badges that will be provided upon completion
     pub max_claimers: ClaimerNum,                            // max number of claimers, 0 indicates no limit
+    pub who_can_claim: ActorId,                   // id of the actor that can claim the quest
     pub deadline: Deadline,                              // gstd::exec::block_timestamp() 
     pub claimers: Vec<ActorId>,                    // list of claimers
     pub claimer_submit: Vec<(ActorId, Submission)>,   // claimer id -> submitted results
@@ -111,9 +113,6 @@ pub struct Name(String);
 
 impl Name {
     pub fn new(name: String) -> Self {
-        if name.len() > 20 {
-            panic!("Name cannot be longer than 20 characters");
-        }
         Self(name)
     }
 }
@@ -127,6 +126,13 @@ pub enum Location {
     Africa,
     SouthAmerica,
     Australia,
+}
+
+#[derive(TypeInfo, Encode, Decode, Clone)]
+pub enum Occupation {
+    Scientist,
+    SoftwareEngineer,
+    Designer,
 }
 
 #[derive(TypeInfo, Encode, Decode, Clone)]

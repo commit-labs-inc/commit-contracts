@@ -32,7 +32,7 @@ extern "C" fn handle() {
         QuestAction::Publish { quest } => {
             // 1. generate a quest id
             // TODO: for now we just use a hardcoded id, need to have a random id generator in the future
-            let quest_id = QuestId::new("01234567890123456789".to_string());
+            let quest_id = QuestId::new(gstd::exec::block_height().to_string());
             // 2. store the quest in the quests map
             let publish_event = quests.publish(quest, quest_id);
             // 3. emit a QuestPublished event

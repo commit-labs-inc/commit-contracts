@@ -118,9 +118,6 @@ pub struct QuestId(String);
 impl QuestId {
     // TODO: need to add stricter rules for quest id
     pub fn new(id: String) -> Self {
-        if id.len() != 20 {
-            panic!("quest id must be 20 characters long");
-        }
         Self(id)
     }
 }
