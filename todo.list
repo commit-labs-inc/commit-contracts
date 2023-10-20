@@ -1,0 +1,10 @@
+1. add the quest contract address to the account contract's state
+2. add following actions and events to account contract: AcceptInterview, AcceptOffer, RecruiterReject, SeekerReject
+3. add controls to ensure only the quest contract can call the above actions + SendInterview + SendOffer
+4. add controls to ensure only existing accounts can change usernames
+5. add controls to ensure only existing accounts can be deleted
+6. add controls to ensure the correct current state for functions: SendInterview, SendOffer
+7. increase and decrease the num_counter in account contract when a new account is created or deleted
+8. add max number check before adding a new account
+9. add partial state reader for the account contract
+10. fix the "whole state couldn't be read" issue in account contract

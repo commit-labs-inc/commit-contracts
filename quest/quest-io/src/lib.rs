@@ -213,6 +213,7 @@ impl Quests {
 
         let owner = quest.owner;
         self.quests.insert(quest_id.clone(), quest);
+
         QuestEvent::QuestPublished {
             recruiter: owner,
             quest_id,

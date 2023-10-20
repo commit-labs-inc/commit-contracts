@@ -1,9 +1,6 @@
 #![no_std]
 use gstd::{prelude::*, ActorId};
-use parity_scale_codec::{Encode, Decode};
-use gmeta::{In, InOut, Metadata};
-use scale_info::TypeInfo;
-use hashbrown::HashMap;
+use gmeta::{In, InOut, Metadata, Out};
 
 pub struct ProgramMetadata;
 
@@ -13,137 +10,204 @@ impl Metadata for ProgramMetadata {
     type Reply = ();
     type Others = ();
     type Signal = ();
-    type State = String;
+    type State = Out<State>;
 }
 
-pub struct Accounts {
-    pub seeker_accounts: HashMap<ActorId, SeekerProfile>,
-    pub recruiter_accounts: HashMap<ActorId, RecruiterProfile>,
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub struct State {
+	pub owner_id: ActorId,
+	pub max_num_accounts: u32,
+	pub num_counter: u32,
+	pub seekers: Vec<ActorId>,
+	pub recruiters: Vec<ActorId>,
+	pub accounts: Vec<(ActorId, Account)>,
 }
 
-impl Accounts {
-    // search for actor's profile, return error if not found
-    pub fn search(&self, actor: ActorId) -> Result<Profile, &'static str> {
-        // search in seeker_accounts
-        if let Some(profile) = self.seeker_accounts.get(&actor) {
-            return Ok(Profile::Seeker(profile.clone()));
-        }
-        // search in recruiter_accounts
-        if let Some(profile) = self.recruiter_accounts.get(&actor) {
-            return Ok(Profile::Recruiter(profile.clone()));
-        }
-
-        //TODO: probably need an error type
-        Err("User not found!")
-    }
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub struct Account {
+	pub username: String,
+	// a two-value enum, seeker and recruiter
+	pub role: Roles,
+	// a collection of skill badge NFT ids
+	pub badges: Vec<Badges>,
+	// a collection of ids of quests claimed or published by the account
+	// the quests are stored within quest contract for now,
+	// but will be moved to de-centralized storage gradually
+	pub quests: Vec<(String, Status)>,
+	// this field is built by users to showcase the quests they've done
+	// for seekers, it will be used for resume generation
+	// for recruiters, it will be used for advertising
+	pub quest_decks: Vec<(String, Status)>,
 }
 
-#[derive(Encode, Decode, TypeInfo)]
-pub enum Profile {
-    Seeker(SeekerProfile),
-    Recruiter(RecruiterProfile),
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub enum Roles {
+	Seeker,
+	Recruiter,
 }
 
-// TODO: add more fields in the future to support more features
-#[derive(Encode, Decode, Clone, Default, TypeInfo)]
-pub struct SeekerProfile {
-    pub username: String,
-    pub badges_received: Vec<Badge>,
-    pub quests: Vec<(QuestId, Status)>,
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub struct Badges {
+	// the human friendly name of a badge
+	name: String,
+	// represents the NFT id of a certain badge
+	// the metainfos are stored within the NFT contract
+	id: String,
+	/// For seekers,
+	/// this field represents how many times can a badge be used to purchase internship level quests
+	/// For recruiters,
+	/// this field represents the freshness or activeness of a recruiter,
+	/// each time a recruiter issues the same badge, the number will go up and gradually go down with time.
+	///
+	/// Requirements:
+	/// * this field MUST NOT exceeds 100 or below 0.
+	amount: u8,
 }
 
-impl SeekerProfile {
-    pub fn update_status(&mut self, quest_id: &QuestId, new_status: Status) {
-        // Iterate through the quests, finding the one with the matching QuestId
-        for (qid, status) in &mut self.quests {
-            if qid == quest_id {
-                *status = new_status; // Update the status
-                break;
-            }
-        }
-    }
-
-    pub fn claim(&mut self, quest_id: QuestId, status: Status) {
-        self.quests.push((quest_id, status));
-    }
-}
-
-#[derive(Encode, Decode, Clone, Default, TypeInfo)]
-pub struct RecruiterProfile {
-    pub company_name: String,
-    pub quests_issued: Vec<(QuestId, Status)>,
-    pub badges_received: Vec<Badge>,
-    pub badges_issued: Vec<Badge>,
-}
-
-impl RecruiterProfile {
-    pub fn update_status(&mut self, quest_id: &QuestId, new_status: Status) -> Result<(), &'static str> {
-        // Iterate through the quests, finding the one with the matching QuestId
-        for (qid, status) in &mut self.quests_issued {
-            if qid == quest_id {
-                *status = new_status; // Update the status
-                return Ok(());
-            }
-        }
-
-        // Return an error if the QuestId was not found
-        Err("QuestId not found")
-    }
-
-    pub fn publish(&mut self, quest_id: QuestId, status: Status) {
-        self.quests_issued.push((quest_id, status));
-    }
-}
-
-#[derive(Encode, Decode, Clone, TypeInfo)]
-pub enum Badge {
-    DryLabResearcher,
-}
-
-#[derive(Encode, Decode, Clone, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
 pub enum Status {
-    InProgress,
-    Submitted,
-    Accepted,
-    GenerallyGood,
-    NeedImprovements,
-    Open,
-    Full,
-    Closed,
+	Seeker(SeekerStatus),
+	Recruiter(RecruiterStatus),
 }
 
-#[derive(Encode, Decode, Clone, TypeInfo, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct QuestId(String);
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub enum SeekerStatus {
+	// status change after successfully claimed a quest
+	Claimed,
+	// status change after successfully submitted to a quest
+	Submitted,
+	
+	// Below are unique statuses for Ads Bay.
 
-impl QuestId {
-    // TODO: need to add stricter rules for quest id
-    pub fn new(id: String) -> Self {
-        Self(id)
-    }
+	// status change after professor sent an interview invitation
+	InterviewReceived,
+    // status change after accepting an interview invitation
+    InterviewAccepted,
+	// status change after professor sent an offer
+	OfferReceived,
+    // status change after accepting an offer
+    OfferAccepted,
+	// status change after the formal enrollment completed
+	Enrolled,
+	// status change after professors clicking the "reject" button
+	Rejected,
+
+	// Below are unique statuses for Quest Harbor
+	Accepted,
+	GenerallyGood,
+	NeedsImprovements,
+	// status change after a quest is completed and minted by the NFT contract
+	Minted,
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub enum RecruiterStatus {
+	// status change after successfully published a quest
+	Published,
+	// status change after the deadline has passed & all gradeable submissions have been graded
+	Completed,
 }
 
 #[derive(Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
 pub enum AccountAction {
-    // login action will handle both register and login
-    Login {
-        role: String, // seeker or recruiter
-    },
-    // when quest related happens, we need to record account info change through this action
-    Record {
-        subject: ActorId,
-        action: String,
+	// TODO: add more changeable items.
+	ChangeName {
+		new_name: String,
+	},
+	Login {
+		role: Roles,
+	},
+	/// Delete an account that associated with the sender's address.
+	///
+	/// Requirements:
+	/// * only account owners can delete their own accounts
+	Delete,
+
+	/// Recruiter will send interview invitation to a seeker of a quest through quest contract.
+    /// 
+    /// Requirements:
+    /// * only the quest contract and call this action
+    /// 
+    /// Arguments:
+    /// * quest_id: the id of the quest that the recruiter wants to send interview invitation to a seeker
+    /// * seeker_id: the id of the seeker that the recruiter wants to send interview invitation to
+	SendInterview {
         quest_id: String,
+        seeker_id: ActorId,
+    },
+	/// Recruiter will send offer proposal to a seeker of a quest through quest contract.
+    /// 
+    /// Requirements:
+    /// * only the quest contract can call this action
+    /// 
+    /// Arguments:
+    /// * quest_id: the id of the quest that the recruiter wants to send offer proposal to a seeker
+	/// * recruiter_id: the id of the recruiter
+    /// * seeker_id: the id of the seeker that the recruiter wants to send offer proposal to
+    SendOffer {
+        quest_id: String,
+        recruiter_id: ActorId,
+        seeker_id: ActorId,
     }
 }
 
 #[derive(Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
 pub enum AccountEvent {
-    LoginSuccess {
-        profile: Profile,
+	ContractInitiated,
+	MaxLimitReached {
+		allowed_max: u32,
+		current_num: u32,
+	},
+	AccountExists {
+		username: String,
+	},
+	AccountCreated {
+		account: ActorId,
+		timestamp: u64,
+	},
+	NameChanged {
+		account: ActorId,
+		timestamp: u64,
+	},
+	AccountDeleted {
+		account: ActorId,
+		timestamp: u64,
+	},
+	InterviewReceived {
+        quest_id: String,
+        seeker_id: ActorId,
     },
-    LoginFailed {
-        subject: ActorId,
+    OfferReceived {
+        quest_id: String,
+        recruiter_id: ActorId,
+        seeker_id: ActorId,
     },
-    RecordSuccess,
-    RecordFailed,
+	Err {
+		msg: String,
+	}
+}
+
+#[derive(Encode, Decode, TypeInfo)]
+#[codec(crate = gstd::codec)]
+#[scale_info(crate = gstd::scale_info)]
+pub struct InitAccount {
+	pub max_num_accounts: u32,
 }

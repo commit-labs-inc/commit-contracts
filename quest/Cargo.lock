@@ -1154,6 +1154,7 @@ dependencies = [
 name = "quest-state"
 version = "0.1.0"
 dependencies = [
+ "account-io",
  "gear-wasm-builder",
  "gmeta",
  "gstd",
