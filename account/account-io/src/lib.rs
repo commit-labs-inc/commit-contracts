@@ -72,7 +72,7 @@ pub struct Badges {
 	amount: u8,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub enum Status {
@@ -80,7 +80,7 @@ pub enum Status {
 	Recruiter(RecruiterStatus),
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub enum SeekerStatus {
@@ -110,9 +110,11 @@ pub enum SeekerStatus {
 	NeedsImprovements,
 	// status change after a quest is completed and minted by the NFT contract
 	Minted,
+	// represents no status found
+	None,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
 #[codec(crate = gstd::codec)]
 #[scale_info(crate = gstd::scale_info)]
 pub enum RecruiterStatus {
@@ -164,7 +166,44 @@ pub enum AccountAction {
         quest_id: String,
         recruiter_id: ActorId,
         seeker_id: ActorId,
-    }
+    },
+	/// Seeker will accept the interview invitation from a recruiter of a quest through quest contract.
+	/// 
+	/// Requirements:
+	/// * only the quest contract can call this action
+	/// 
+	/// Arguments:
+	/// * quest_id: the id of the quest that the seeker wants to accept interview invitation from a recruiter
+	/// * seeker_id: the id of the seeker
+	AcceptInterview {
+		quest_id: String,
+		seeker_id: ActorId,
+	},
+	/// Seeker will accept the offer proposal from a recruiter of a quest through quest contract.
+	/// 
+	/// Requirements:
+	/// * only the quest contract can call this action
+	/// 
+	/// Arguments:
+	/// * quest_id: the id of the quest that the seeker wants to accept offer proposal from a recruiter
+	/// * seeker_id: the id of the seeker
+	AcceptOffer {
+		quest_id: String,
+		seeker_id: ActorId,
+	},
+	/// Recruiter can reject after recieveing submission or after an interview through the quest contract.
+	/// Only recruiter can manually reject a seeker for now.
+	/// 
+	/// Requirements:
+	/// * only the quest contract can call this action
+	/// 
+	/// Arguments:
+	/// * quest_id: the id of the quest that the recruiter wants to reject a seeker
+	/// * seeker_id: the id of the seeker
+	RecruiterReject {
+		quest_id: String,
+		seeker_id: ActorId,
+	},
 }
 
 #[derive(Encode, Decode, TypeInfo)]
@@ -200,6 +239,18 @@ pub enum AccountEvent {
         recruiter_id: ActorId,
         seeker_id: ActorId,
     },
+	InterviewAccepted {
+		quest_id: String,
+		seeker_id: ActorId,
+	},
+	OfferAccepted {
+		quest_id: String,
+		seeker_id: ActorId,
+	},
+	Rejected {
+		quest_id: String,
+		seeker_id: ActorId,
+	},
 	Err {
 		msg: String,
 	}
