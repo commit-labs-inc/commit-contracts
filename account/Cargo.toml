@@ -1,18 +1,37 @@
 [package]
 name = "account"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gstd.workspace = true
+parity-scale-codec.workspace = true
+scale-info.workspace = true
+account-io.workspace = true
+hashbrown.workspace = true
+
+[dev-dependencies]
+gtest.workspace = true
+
+[build-dependencies]
+gear-wasm-builder.workspace = true
+account-io.workspace = true
+
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], tag = "v0.3.3" }
+[workspace.dependencies]
+gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], tag = "v1.0.0" }
+parity-scale-codec = { version = "3", default-features = false }
+scale-info = { version = "2", default-features = false }
 account-io = { path = "account-io" }
-quote = "1.0.33"
+hashbrown = "0.13.1"
+gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", features = ["wasm-opt"], tag = "v1.0.0" }
+gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
 
-[build-dependencies]
-gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", features = ["wasm-opt"], tag = "v0.3.3" }
-account-io = { path = "account-io" }
 
-[dev-dependencies]
-gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v0.3.3" }

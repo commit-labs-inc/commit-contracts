@@ -6,9 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gmeta = {  git = "https://github.com/gear-tech/gear.git", rev = "946ac47" }
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], rev = "946ac47" }
+gmeta = {  git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
+gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], tag = "v1.0.0" }
 parity-scale-codec.workspace = true
-account-io.workspace = true
 scale-info.workspace = true
 hashbrown.workspace = true

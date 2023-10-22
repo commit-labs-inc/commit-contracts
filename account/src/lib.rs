@@ -191,14 +191,6 @@ extern "C" fn handle() {
     }
 }
 
-#[no_mangle]
-extern fn state() {
-    let contract = unsafe {
-        CONTRACT.take().expect("Unexpected error in taking state")
-    };
-    msg::reply::<State>(contract.into(), 0).expect("Failed to encode or reply with `State` from `state()`");
-}
-
 impl Accounts {
     // TODO: change the return type to Result.
     fn change_name(&mut self, new_name: String) -> bool {
@@ -299,18 +291,5 @@ impl Accounts {
     // returns true if there are still capacity for new accounts
     fn check_capacity(&self) -> bool {
         self.num_counter < self.max_num_accounts
-    }
-}
-
-impl From<Accounts> for State {
-    fn from(value: Accounts) -> Self {
-        State {
-            owner_id: value.owner_id,
-            max_num_accounts: value.max_num_accounts,
-            num_counter: value.num_counter,
-            seekers: value.seekers.into_iter().collect(),
-            recruiters: value.recruiters.into_iter().collect(),
-            accounts: value.accounts.into_iter().map(|(k, v)| (k, v)).collect(),
-        }
     }
 }

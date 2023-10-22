@@ -1,6 +1,7 @@
 #![no_std]
 use gstd::{prelude::*, ActorId};
 use gmeta::{In, InOut, Metadata, Out};
+use scale_info::TypeInfo;
 
 pub struct ProgramMetadata;
 
@@ -10,13 +11,11 @@ impl Metadata for ProgramMetadata {
     type Reply = ();
     type Others = ();
     type Signal = ();
-    type State = Out<State>;
+    type State = Out<AccountState>;
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
-pub struct State {
+pub struct AccountState {
 	pub owner_id: ActorId,
 	pub max_num_accounts: u32,
 	pub num_counter: u32,
@@ -26,8 +25,6 @@ pub struct State {
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub struct Account {
 	pub username: String,
 	// a two-value enum, seeker and recruiter
@@ -45,16 +42,12 @@ pub struct Account {
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub enum Roles {
 	Seeker,
 	Recruiter,
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub struct Badges {
 	// the human friendly name of a badge
 	name: String,
@@ -73,16 +66,12 @@ pub struct Badges {
 }
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub enum Status {
 	Seeker(SeekerStatus),
 	Recruiter(RecruiterStatus),
 }
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub enum SeekerStatus {
 	// status change after successfully claimed a quest
 	Claimed,
@@ -115,8 +104,6 @@ pub enum SeekerStatus {
 }
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub enum RecruiterStatus {
 	// status change after successfully published a quest
 	Published,
@@ -125,8 +112,6 @@ pub enum RecruiterStatus {
 }
 
 #[derive(Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub enum AccountAction {
 	// TODO: add more changeable items.
 	ChangeName {
@@ -207,8 +192,6 @@ pub enum AccountAction {
 }
 
 #[derive(Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub enum AccountEvent {
 	ContractInitiated,
 	MaxLimitReached {
@@ -257,8 +240,6 @@ pub enum AccountEvent {
 }
 
 #[derive(Encode, Decode, TypeInfo)]
-#[codec(crate = gstd::codec)]
-#[scale_info(crate = gstd::scale_info)]
 pub struct InitAccount {
 	pub max_num_accounts: u32,
 }
