@@ -5,4 +5,6 @@
 11. add "change quest contract address" functionality to the owner
 12. if there are no matching quest id, the contract should return an error
 13. add actions and events for: QuestClaimed, QuestPublished, QuestCompleted
-13. make the code DRY
+14. change from HashMap to BTreeMap
+15. change init message from string to a dedicated struct
+16. make the code DRY
