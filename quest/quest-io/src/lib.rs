@@ -41,9 +41,6 @@ pub struct Quest {
 	pub seeker_submission: BTreeMap<ActorId, String>,
 	// seeker's status of a quest
 	pub seeker_status: BTreeMap<ActorId, Status>,
-	// urls to the published ads,
-	// this field is only displayed to recruiters
-	pub ads_links: Ads,
 	// this probably needs to change to a dedicated type for better screen display
 	pub details: String,
 }
@@ -66,6 +63,14 @@ impl Quest {
 	// check if a seeker's current status matches the status given
 	pub fn seeker_status_match(&self, key: &ActorId, status: Status) -> bool {
 		*self.seeker_status.get(key).unwrap() == status
+	}
+	// add a seeker's submission to the quest
+	pub fn add_submission(&mut self, seeker: ActorId, submission: String) {
+		self.seeker_submission.insert(seeker, submission);
+	}
+	// change a seeker's status of a quest
+	pub fn change_seeker_status(&mut self, key: ActorId, status: Status) {
+		self.seeker_status.insert(key, status);
 	}
 }
 
@@ -114,7 +119,7 @@ pub enum QuestAction {
 	/// Arguments:
 	/// * quest: the quest to be published.
 	Publish {
-		quest: Quest,
+		quest: QuestInfo,
 	},
 	/// Seekers claim a quest.
 	/// 
@@ -143,20 +148,71 @@ pub enum QuestAction {
 		// this should be changed to IPFS cid in the future
 		submission: String,
 	},
+	/// Recruiters send interview invitations to seekers.
+	/// 
+	/// Requirements:
+	/// * the quest of the given id must exist.
+	/// * the seeker must have submitted to the quest.
+	/// * the msg sender must be an approved recruiter.
+	/// 
+	/// Arguments:
+	/// * seeker: the id of the seeker to be interviewed.
+	/// * quest_id: the id of the quest.
 	Interview {
-		// the id of the seeker who will be interviewed
 		seeker: ActorId,
 		quest_id: u32,
 	},
+	/// Seekers accept interview invitations.
+	/// 
+	/// Requirements:
+	/// * the quest of the given id must exist.
+	/// * the seeker must have received an interview invitation.
+	/// 
+	/// Arguments:
+	/// * quest_id: the id of the quest.
+	AcceptInterview {
+		quest_id: u32,
+	},
+	/// Recruiters send offers to seekers.
+	/// 
+	/// Requirements:
+	/// * the quest of the given id must exist.
+	/// * the seeker must have accepted an interview invitation.
+	/// * the msg sender must be an approved recruiter.
+	/// 
+	/// Arguments:
+	/// * seeker: the id of the seeker to be offered.
+	/// * quest_id: the id of the quest.
 	Offer {
-		// the id of the seeker who is getting an offer
 		seeker: ActorId,
 		quest_id: u32,
 	},
+	/// Seekers accept offers.
+	/// 
+	/// Requirements:
+	/// * the quest of the given id must exist.
+	/// * the seeker must have received an offer.
+	/// 
+	/// Arguments:
+	/// * quest_id: the id of the quest.
+	AcceptOffer {
+		quest_id: u32,
+	},
+	/// Recruiters reject seekers after they submitted or interviewed.
+	/// 
+	/// Requirements:
+	/// * the quest of the given id must exist.
+	/// * the seeker must have either submitted or interviewed.
+	/// * the msg sender must be an approved recruiter.
+	/// 
+	/// Arguments:
+	/// * seeker: the id of the seeker to be rejected.
+	/// * quest_id: the id of the quest.
 	Reject {
 		seeker: ActorId,
 		quest_id: u32,
 	},
+	// TODO: the logic of closing a quest needs to be discussed
 	Close {
 		quest_id: u32,
 	},
@@ -171,6 +227,27 @@ pub enum QuestAction {
 	AddRecruiter {
 		recruiter: ActorId,
 	},
+	/// Change the stored address of the account contract.
+	/// 
+	/// Requirements:
+	/// * The sender must be the owner of the quest contract.
+	/// 
+	/// Arguments:
+	/// * new_account_contract: the new address of the account contract.
+	ChangeAccountContract {
+		new_account_contract: ActorId,
+	},
+}
+
+#[derive(Encode, Decode, TypeInfo)]
+pub struct QuestInfo {
+    pub id: u32,
+    pub title: String,
+    pub position: Position,
+    pub deadline: u32,
+    pub img: Option<String>,
+    pub deliverables: Vec<String>,
+    pub details: String,
 }
 
 #[derive(Encode, Decode, TypeInfo)]

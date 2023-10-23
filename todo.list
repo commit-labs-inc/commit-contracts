@@ -14,3 +14,11 @@
 For Quest Contract:
 
 1. merge status comparison of quest into one function: quest_status_match
+2. add function for quest contract owner to add approved recruiter
+3. add state functions
+4. remove ads link struct in the quest, because it is not possible to have those linkes before the quest is published
+5. change id, status, publisher, seeker_submission, seeker_status fields in quest to private
+6. add default value for the quest struct
+7. add maximum claimers field to Quest struct
+8. add change id function to Quest struct
+9. add communication to the account contract
