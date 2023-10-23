@@ -8,3 +8,9 @@
 14. change from HashMap to BTreeMap
 15. change init message from string to a dedicated struct
 16. make the code DRY
+
+
+----------------------------------------------------------------------------------------
+For Quest Contract:
+
+1. merge status comparison of quest into one function: quest_status_match
