@@ -34,11 +34,11 @@ pub struct Account {
 	// a collection of ids of quests claimed or published by the account
 	// the quests are stored within quest contract for now,
 	// but will be moved to de-centralized storage gradually
-	pub quests: Vec<(String, Status)>,
+	pub quests: Vec<(u32, Status)>,
 	// this field is built by users to showcase the quests they've done
 	// for seekers, it will be used for resume generation
 	// for recruiters, it will be used for advertising
-	pub quest_decks: Vec<(String, Status)>,
+	pub quest_decks: Vec<(u32, Status)>,
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
@@ -126,6 +126,12 @@ pub enum AccountAction {
 	/// * only account owners can delete their own accounts
 	Delete,
 
+	/// Recruiter published a quest through quest contract.
+	PublishQuest {
+		recruiter_id: ActorId,
+		quest_id: u32,
+	},
+
 	/// Recruiter will send interview invitation to a seeker of a quest through quest contract.
     /// 
     /// Requirements:
@@ -135,7 +141,7 @@ pub enum AccountAction {
     /// * quest_id: the id of the quest that the recruiter wants to send interview invitation to a seeker
     /// * seeker_id: the id of the seeker that the recruiter wants to send interview invitation to
 	SendInterview {
-        quest_id: String,
+        quest_id: u32,
         seeker_id: ActorId,
     },
 	/// Recruiter will send offer proposal to a seeker of a quest through quest contract.
@@ -148,7 +154,7 @@ pub enum AccountAction {
 	/// * recruiter_id: the id of the recruiter
     /// * seeker_id: the id of the seeker that the recruiter wants to send offer proposal to
     SendOffer {
-        quest_id: String,
+        quest_id: u32,
         recruiter_id: ActorId,
         seeker_id: ActorId,
     },
@@ -161,7 +167,7 @@ pub enum AccountAction {
 	/// * quest_id: the id of the quest that the seeker wants to accept interview invitation from a recruiter
 	/// * seeker_id: the id of the seeker
 	AcceptInterview {
-		quest_id: String,
+		quest_id: u32,
 		seeker_id: ActorId,
 	},
 	/// Seeker will accept the offer proposal from a recruiter of a quest through quest contract.
@@ -173,7 +179,7 @@ pub enum AccountAction {
 	/// * quest_id: the id of the quest that the seeker wants to accept offer proposal from a recruiter
 	/// * seeker_id: the id of the seeker
 	AcceptOffer {
-		quest_id: String,
+		quest_id: u32,
 		seeker_id: ActorId,
 	},
 	/// Recruiter can reject after recieveing submission or after an interview through the quest contract.
@@ -186,7 +192,7 @@ pub enum AccountAction {
 	/// * quest_id: the id of the quest that the recruiter wants to reject a seeker
 	/// * seeker_id: the id of the seeker
 	RecruiterReject {
-		quest_id: String,
+		quest_id: u32,
 		seeker_id: ActorId,
 	},
 }
@@ -194,6 +200,11 @@ pub enum AccountAction {
 #[derive(Encode, Decode, TypeInfo)]
 pub enum AccountEvent {
 	ContractInitiated,
+	QuestPublished {
+		recruiter_id: ActorId,
+		quest_id: u32,
+		timestamp: u64,
+	},
 	MaxLimitReached {
 		allowed_max: u32,
 		current_num: u32,
@@ -214,24 +225,24 @@ pub enum AccountEvent {
 		timestamp: u64,
 	},
 	InterviewReceived {
-        quest_id: String,
+        quest_id: u32,
         seeker_id: ActorId,
     },
     OfferReceived {
-        quest_id: String,
+        quest_id: u32,
         recruiter_id: ActorId,
         seeker_id: ActorId,
     },
 	InterviewAccepted {
-		quest_id: String,
+		quest_id: u32,
 		seeker_id: ActorId,
 	},
 	OfferAccepted {
-		quest_id: String,
+		quest_id: u32,
 		seeker_id: ActorId,
 	},
 	Rejected {
-		quest_id: String,
+		quest_id: u32,
 		seeker_id: ActorId,
 	},
 	Err {

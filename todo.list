@@ -11,6 +11,7 @@
 
 
 ----------------------------------------------------------------------------------------
+
 For Quest Contract:
 
 1. merge status comparison of quest into one function: quest_status_match
@@ -22,3 +23,9 @@ For Quest Contract:
 7. add maximum claimers field to Quest struct
 8. add change id function to Quest struct
 9. add communication to the account contract
+
+----------------------------------------------------------------------------------------
+
+For All Contracts:
+
+1. consider using gas reservation to let them communicate with each other directly

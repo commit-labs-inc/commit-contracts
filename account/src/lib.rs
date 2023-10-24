@@ -188,6 +188,10 @@ extern "C" fn handle() {
             accounts.recruiter_reject(quest_id.clone(), seeker_id);
             let _ = msg::reply(AccountEvent::Rejected { quest_id, seeker_id }, 0);
         },
+        AccountAction::PublishQuest { recruiter_id, quest_id } => {
+            accounts.accounts.get_mut(&recruiter_id).unwrap().quests.push((quest_id.clone(), Status::Recruiter(RecruiterStatus::Published)));
+            let _ = msg::reply(AccountEvent::QuestPublished { recruiter_id, quest_id, timestamp: exec::block_timestamp() }, 0);
+        }
     }
 }
 
@@ -214,7 +218,7 @@ impl Accounts {
     }
     // TODO: in the future when internal messaging system is open,
     // we will add more functionalities to this function.
-    fn receive_interview(&mut self, quest_id: String, seeker_id: ActorId) {
+    fn receive_interview(&mut self, quest_id: u32, seeker_id: ActorId) {
         if let Some(account) = self.accounts.get_mut(&seeker_id) {
             for (id, status) in &mut account.quests {
                 if id == &quest_id {
@@ -225,7 +229,7 @@ impl Accounts {
     }
     // TODO: in the future when internal messaging system is open,
     // we will add more functionalities to this function.
-    fn receive_offer(&mut self, quest_id: String, seeker_id: ActorId) {
+    fn receive_offer(&mut self, quest_id: u32, seeker_id: ActorId) {
         if let Some(account) = self.accounts.get_mut(&seeker_id) {
             for (id, status) in &mut account.quests {
                 if id == &quest_id {
@@ -236,7 +240,7 @@ impl Accounts {
     }
     // TODO: in the future when internal messaging system is open,
     // we will add more functionalities to this function.
-    fn accept_interview(&mut self, quest_id: String, seeker_id: ActorId) {
+    fn accept_interview(&mut self, quest_id: u32, seeker_id: ActorId) {
         if let Some(account) = self.accounts.get_mut(&seeker_id) {
             for (id, status) in &mut account.quests {
                 if id == &quest_id {
@@ -246,7 +250,7 @@ impl Accounts {
         }
     }
 
-    fn accept_offer(&mut self, quest_id: String, seeker_id: ActorId) {
+    fn accept_offer(&mut self, quest_id: u32, seeker_id: ActorId) {
         if let Some(account) = self.accounts.get_mut(&seeker_id) {
             for (id, status) in &mut account.quests {
                 if id == &quest_id {
@@ -256,7 +260,7 @@ impl Accounts {
         }
     }
 
-    fn recruiter_reject(&mut self, quest_id: String, seeker_id: ActorId) {
+    fn recruiter_reject(&mut self, quest_id: u32, seeker_id: ActorId) {
         if let Some(account) = self.accounts.get_mut(&seeker_id) {
             for (id, status) in &mut account.quests {
                 if id == &quest_id {
@@ -278,7 +282,7 @@ impl Accounts {
         }
     }
     // return an address's quest status
-    fn get_status(&self, address: ActorId, quest_id: String) -> &Status {
+    fn get_status(&self, address: ActorId, quest_id: u32) -> &Status {
         if let Some(account) = self.accounts.get(&address) {
             for (id, status) in &account.quests {
                 if id == &quest_id {

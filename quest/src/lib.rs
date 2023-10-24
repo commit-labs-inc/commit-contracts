@@ -76,6 +76,7 @@ extern "C" fn handle() {
             
             // 3. publish the quest
             let quest_id = quests.quest_id;
+
             quests.quest_id += 1;
             quests.num_counter += 1;
             let new_quest = Quest {
@@ -95,7 +96,7 @@ extern "C" fn handle() {
 
             let _ = msg::reply(QuestEvent::OperationSuccess { 
                 name: String::from("Publish"), 
-                timestamp: exec::block_timestamp(),
+                timestamp: exec::block_timestamp(), 
             }, 0);
         },
         QuestAction::Claim { quest_id } => {
