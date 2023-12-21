@@ -11,4 +11,3 @@ gmeta = {  git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
 gstd.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
-hashbrown.workspace = true

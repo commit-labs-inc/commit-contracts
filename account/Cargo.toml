@@ -3,15 +3,11 @@ name = "account"
 version.workspace = true
 edition.workspace = true
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
 gstd.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
 account-io.workspace = true
-hashbrown.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true
@@ -30,7 +26,6 @@ gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], ta
 parity-scale-codec = { version = "3", default-features = false }
 scale-info = { version = "2", default-features = false }
 account-io = { path = "account-io" }
-hashbrown = "0.13.1"
 gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", features = ["wasm-opt"], tag = "v1.0.0" }
 gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.0" }
 

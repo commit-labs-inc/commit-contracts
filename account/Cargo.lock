@@ -20,7 +20,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
- "hashbrown 0.13.2",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -31,7 +30,6 @@ version = "0.1.0"
 dependencies = [
  "gmeta",
  "gstd",
- "hashbrown 0.13.2",
  "parity-scale-codec",
  "scale-info",
 ]
