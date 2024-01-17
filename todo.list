@@ -1,4 +1,4 @@
-0. Add status tracking for each committer.
+0. ✅ Add status tracking for each committer.
 1. Add quest publishing logic: only approved providers can publish.
 2. Add quest commiting logic: everyone can commit but one committer can only commit once to the same quest.
 3. Add quest submitting logic: the committer who committed to the quest can submit to the quest only once.
@@ -8,3 +8,7 @@
 7. Add quest closing logic: only the quest publisher can close the quest.
 8. Add quest retraction logic: only the quest publisher can retract the quest. Retract can only be done before any commiter shows up.
 9. Design a search logic that closely tracking the business plan.
+
+---------------------------------------------------------------------------------------
+
+1. QuestAction::Publish -> Need to check the free gradings against the minimum allowance.

@@ -20,73 +20,88 @@ pub struct InitQuest {
 }
 
 /// Base structure for all quests
-#[derive(Debug, Encode, Decode, TypeInfo)]
-struct Base {
-	/// The unique identifier of a quest in the format of a decentralized storage id.
-	///
-	/// Functional requriements:
-	/// 1. collision check need to be performed against existing quests before publishing.
-	quest_id: String,
+#[derive(Default, Debug, Encode, Decode, TypeInfo)]
+pub struct Base {
 	/// Security requirements:
 	/// 1. institution and quest name needs to conform to social norm.
-	institution_name: String,
-	quest_name: String,
+	pub institution_name: String,
+	pub quest_name: String,
 	/// Short descriptions about quests, ideally <= 10 sentences.
-	description: String,
+	pub description: String,
 	/// Describe what are expected as submissions from seekers.
-	deliverables: String,
+	pub deliverables: String,
 	/// Specify the maximum seekers this quest willing to accept.
 	/// That means it can handle at most $capacity concurrent ongoing seekers.
-	capacity: u32,
+	pub capacity: u32,
 	/// Specify which token (singular) will be issued as rewards.
-	skill_token_name: SkillToken,
+	pub skill_token_name: SkillToken,
 	/// Specify deadline in the format of Vara block height.
 	///
 	/// Functional requirements:
 	/// 1. the specified deadline must > current block height.
-	deadline: u64,
+	pub deadline: u64,
 	/// Specify whether the quest will consume seekers free trying numbers or not.
 	/// 
 	/// Recommendations:
 	/// 1. Top-tier quests are always set to 'True' - not consume.
 	/// 2. Mid-tier quests are encouraged to set to 'False' - consume to let seekers jump-start with cautious.
 	/// 3. Base-tier quests are encouraged to set to 'True' to let seekers bootstrap themselves.
-	open_try: bool,
+	pub open_try: bool,
 	/// The wallet address used to publish the quest.
-	provider: ActorId,
+	pub provider: ActorId,
 	/// The person who is directly in charge of managing this quest.
-	provider_name: String,
+	pub provider_name: String,
 	/// Link to other social apps, e.g. gmail, X, and etc.
 	///
 	/// Security requirements:
 	/// 1. validity of the links should be checked by us after publishing.
 	/// 2. malformed links should be checked automatically before publishing.
 	/// 3. notifications should be displayed to user about potential security issues.
-	contact_info: String,
+	pub contact_info: String,
 	// ----------------------------------------------------------------------------
 	// Below are dynamic informations for a quest
 
 	/// Manage submissions from seekers.
 	/// We use google drive links now and will transition to include decentralized storage in the future.
-	submissions: BTreeMap<ActorId, Option<String>>,
+	pub submissions: BTreeMap<ActorId, SeekerStatus>,
 	/// Manage gradings for seekers.
-	gradings: BTreeMap<ActorId, Option<Gradings>>,
+	pub gradings: BTreeMap<ActorId, Option<Gradings>>,
 	/// A quest can only get extended beyond its deadline once.
-	extended: bool,
+	pub extended: bool,
 	/// A quest can only get modified once within a time limit start from the appearace of the first claimer.
-	modified: bool,
+	pub modified: bool,
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub struct IncomingQuest {
+	pub institution_name: String,
+	pub quest_name: String,
+	pub description: String,
+	pub deliverables: String,
+	pub capacity: u32,
+	pub skill_token_name: SkillToken,
+	pub deadline: u64,
+	pub open_try: bool,
+	pub provider_name: String,
+	pub contact_info: String,
+	pub free_gradings: u8,
+	pub hiring_for: String,
+	pub skill_tags: SkillNFT,
+	pub reputation_nft: RepuNFT,
+	pub prize: String,
+	pub application_deadline: u64,
 }
 
 // Base Tier - Skill Assessment Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct BaseTierQuest {
-	base: Base,
+	pub base: Base,
 	/// Specified by the quest providers, how many free gradings they are willing to hand out to seekers.
 	/// Seekers who submitted without any free gradings left will be charged a minor amount of fee that will splitted between providers and Commit platform.
 	///
 	/// Functional requirements:
 	/// 1. range needs to > MIN_LIMIT.
-	free_gradings: u8,
+	pub free_gradings: u8,
 }
 
 // Mid Tier - Hiring Purpose Quest
@@ -140,6 +155,14 @@ pub struct DedicatedQuest {
 	dedicated_to: Option<Vec<ActorId>>,
 }
 
+/// The status of a seeker for a quest.
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub enum SeekerStatus {
+	Waiting,
+	Submitted(String),
+	Graded(Gradings),
+}
+
 /// Possible gradings for every quest.
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum Gradings {
@@ -150,8 +173,10 @@ pub enum Gradings {
 
 /// List all possible skill tokens we support.
 /// This list should be manageable through OpenGov.
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Default, Debug, Encode, Decode, TypeInfo)]
 pub enum SkillToken {
+	#[default]
+	None,
 	Python,
 	Simulation,
 }
@@ -166,8 +191,10 @@ pub enum SkillNFT {
 
 /// List all possible reputation nfts we can provide, this should be more generall then the skill nfts.
 /// This list should be manageable through OpenGov, but preferabily with a faster voting process setup.
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Default, Debug, Encode, Decode, TypeInfo)]
 pub enum RepuNFT {
+	#[default]
+	None,
 	CSHackathonWinner,
 	ResearchCompetitionWinner,
 	CSInternship,
@@ -180,17 +207,29 @@ pub enum QuestStatus {
 	Closed,
 }
 
+/// All possible quest types supported for now.
+#[derive(Encode, Decode, TypeInfo)]
+pub enum QuestType {
+	BaseTier,
+	MidTier,
+	TopTier,
+	Dedicated,
+}
+
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestAction {
-	/// Recruiters publish a quest.
+	/// Providers publish a quest.
 	/// 
 	/// Requirements:
 	/// * The msg sender must be an approved recruiter.
 	/// * All fields of a quest must be filled.
 	/// 
 	/// Arguments:
-	/// * quest: the quest to be published.
-	Publish,
+	/// * quest_type: the type of the quest to be published.
+	Publish {
+		quest_type: QuestType,
+		quest_info: IncomingQuest,
+	},
 	/// Seekers claim a quest.
 	/// 
 	/// Requirements:

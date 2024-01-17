@@ -1,5 +1,5 @@
 #![no_std]
-use gstd::{msg, prelude::*, collections::BTreeMap, ActorId};
+use gstd::{collections::BTreeMap, exec, msg, prelude::*, ActorId};
 use quest_io::*;
 
 type QuestId = String;
@@ -39,11 +39,11 @@ extern "C" fn init() {
 #[no_mangle]
 extern "C" fn handle() {
     let action: QuestAction = msg::load().expect("Failed to load action");
-    let _quests: &mut Quests = unsafe { CONTRACT.as_mut().expect("Quest contract not initialized.") };
+    let quests: &mut Quests = unsafe { CONTRACT.as_mut().expect("Quest contract not initialized.") };
 
     match action {
-        QuestAction::Publish => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest published!") }, 0);
+        QuestAction::Publish { quest_type, quest_info } => {
+            let _ = msg::reply(quests.publish(quest_type, quest_info), 0);
         },
         QuestAction::Commit => {
             let _ = msg::reply(QuestEvent::Ok { msg: String::from("New commiter added!") }, 0);
@@ -70,4 +70,55 @@ extern "C" fn handle() {
             let _ = msg::reply(QuestEvent::Ok { msg: String::from("Some actor searched a quest!") }, 0);
         },
     }
+}
+
+impl Quests {
+    fn publish(&mut self, quest_type: QuestType, quest_info: IncomingQuest) -> QuestEvent {
+        let quest_id = quest_id_gen();
+
+        match quest_type {
+            QuestType::BaseTier => {
+                // 0. Only approved providers can publish quests
+                if !self.is_approved(msg::source()) {
+                    return QuestEvent::Err { msg: String::from("You are not an approved provider!") }
+                }
+                // 1. Construct the actual quest based on the incoming quest info
+                let base_tier_quest = BaseTierQuest {
+                    base: Base { 
+                        provider: msg::source(),
+                        institution_name: quest_info.institution_name,
+                        quest_name: quest_info.quest_name,
+                        description: quest_info.description,
+                        deliverables: quest_info.deliverables,
+                        deadline: quest_info.deadline,
+                        capacity: quest_info.capacity,
+                        skill_token_name: quest_info.skill_token_name,
+                        open_try: quest_info.open_try,
+                        contact_info: quest_info.contact_info,
+                        ..Default::default()
+                    },
+                    // TODO: need to check against the minimum allowance
+                    free_gradings: quest_info.free_gradings,
+                };
+                // 2. Insert the incoming quests into the quest mapping
+                self.base_tier_quests.insert(quest_id.clone(), base_tier_quest);
+                // 3. Insert the quest status into the quest status mapping
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                // 4. Return the event
+                QuestEvent::Ok { msg: String::from("Base tier quest published!") }
+            },
+            _ => {
+                QuestEvent::Ok { msg: String::from("Quest published!") }
+            }
+        }
+    }
+
+    /// Check against the approved providers list
+    fn is_approved(&self, sender: ActorId) -> bool {
+        self.approved_providers.contains(&sender)
+    }
+}
+
+fn quest_id_gen() -> String {
+    exec::block_timestamp().to_string()
 }
