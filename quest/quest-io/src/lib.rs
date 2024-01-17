@@ -17,6 +17,7 @@ impl Metadata for ProgramMetadata {
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct InitQuest {
 	pub approved_providers: Vec<ActorId>,
+	pub minumum_free_gradings: u8,
 }
 
 /// Base structure for all quests
@@ -72,7 +73,7 @@ pub struct Base {
 	pub modified: bool,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, Clone)]
 pub struct IncomingQuest {
 	pub institution_name: String,
 	pub quest_name: String,
@@ -89,7 +90,8 @@ pub struct IncomingQuest {
 	pub skill_tags: SkillNFT,
 	pub reputation_nft: RepuNFT,
 	pub prize: String,
-	pub application_deadline: u64,
+	pub application_deadline: u32,
+	pub dedicated_to: Option<Vec<ActorId>>,
 }
 
 // Base Tier - Skill Assessment Quest
@@ -107,52 +109,52 @@ pub struct BaseTierQuest {
 // Mid Tier - Hiring Purpose Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct MidTierQuest {
-	base: Base,
+	pub base: Base,
 	/// Specified by the quest providers, how many free gradings they are willing to hand out to seekers.
 	/// Seekers who submitted without any free gradings left will be charged a minor amount of fee that will splitted between providers and Commit platform.
 	///
 	/// Functional requirements:
 	/// 1. range needs to > MIN_LIMIT.
-	free_gradings: u8,
+	pub free_gradings: u8,
 	/// Specify the position the provider is hiring for, e.g. Master, Ph.D., Internship.
-	hiring_for: String,
+	pub hiring_for: String,
 	/// Specify which type of skill NFT is needed to start working on this quest.
-	skill_tags: SkillNFT,
+	pub skill_tags: SkillNFT,
 	/// Specify which reputation will be issued as rewards.
 	/// Notice that there is also an implicit reward - internship opportunity.
-	reputation_nft: RepuNFT,
+	pub reputation_nft: RepuNFT,
 }
 
 // Top Tier - Competition Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct TopTierQuest {
-	base: Base,
+	pub base: Base,
 	/// Specified by the competition organizer.
 	///
 	/// Security requirements:
 	/// 1. disclaimers need to display to seekers.
-	prize: String,
+	pub prize: String,
 	/// Specify deadline in the format of Vara block height.
 	/// This deadline is different than the `deadline` field in the base structure,
 	/// here it means after which users are not able to claim this quest anymore.
 	///
 	/// Functional requirements:
 	/// 1. the specified deadline must > the current Vara block height.
-	application_deadline: u64,
+	pub application_deadline: u32,
 	/// Specify which reputation will be issued as rewards.
 	/// Notice that there is also an implicit reward - global recognition (fame)
-	reputation_nft: RepuNFT,
+	pub reputation_nft: RepuNFT,
 }
 
 // Dedicated Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct DedicatedQuest {
-	base: Base,
+	pub base: Base,
 	/// Specify the wallet addresses that can claim this quest.
 	///
 	/// If this part is left empty, it means anyone knows the passcodes can claim this quest,
 	/// suitable for the usage by providers who can't gather all the wallet addressess needed upfront, e.g. online courses and etc.
-	dedicated_to: Option<Vec<ActorId>>,
+	pub dedicated_to: Option<Vec<ActorId>>,
 }
 
 /// The status of a seeker for a quest.
@@ -173,7 +175,7 @@ pub enum Gradings {
 
 /// List all possible skill tokens we support.
 /// This list should be manageable through OpenGov.
-#[derive(Default, Debug, Encode, Decode, TypeInfo)]
+#[derive(Default, Debug, Encode, Decode, TypeInfo, Clone)]
 pub enum SkillToken {
 	#[default]
 	None,
@@ -183,7 +185,7 @@ pub enum SkillToken {
 
 /// List all possible skill badges we can issue, they should be matched 1-1 to skill tokens.
 /// This list should be manageable through OpenGov.
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, Clone)]
 pub enum SkillNFT {
 	Python,
 	Simulation,
@@ -191,7 +193,7 @@ pub enum SkillNFT {
 
 /// List all possible reputation nfts we can provide, this should be more generall then the skill nfts.
 /// This list should be manageable through OpenGov, but preferabily with a faster voting process setup.
-#[derive(Default, Debug, Encode, Decode, TypeInfo)]
+#[derive(Default, Debug, Encode, Decode, TypeInfo, Clone)]
 pub enum RepuNFT {
 	#[default]
 	None,

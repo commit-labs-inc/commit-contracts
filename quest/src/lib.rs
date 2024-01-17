@@ -14,10 +14,13 @@ pub struct Quests {
 		pub mid_tier_quests: BTreeMap<QuestId, MidTierQuest>,
 		/// Mapping with top-tier quests: `QuestId` -> `TopTierQuest`
 		pub top_tier_quests: BTreeMap<QuestId, TopTierQuest>,
+        /// Mapping with dedicated quests: `QuestId` -> `DedicatedQuest`
+        pub dedicated_quests: BTreeMap<QuestId, DedicatedQuest>,
 		/// Track `QuestStatus` use `QuestId`
 		pub quest_status: BTreeMap<QuestId, QuestStatus>,
 		/// Listing of human and AI providers that are allowed to publish quests
 		pub approved_providers: Vec<ActorId>,
+        minumum_free_gradings: u8,
 }
 
 static mut CONTRACT: Option<Quests> = None;
@@ -29,6 +32,7 @@ extern "C" fn init() {
         CONTRACT = Some(Quests {
             admin: msg::source(),
             approved_providers: init_info.approved_providers,
+            minumum_free_gradings: init_info.minumum_free_gradings,
             ..Default::default()
         });
     }
@@ -74,29 +78,23 @@ extern "C" fn handle() {
 
 impl Quests {
     fn publish(&mut self, quest_type: QuestType, quest_info: IncomingQuest) -> QuestEvent {
+        // Only approved providers can publish quests
+        if !self.is_approved(msg::source()) {
+            return QuestEvent::Err { msg: String::from("You are not an approved provider!") }
+        }
+        
         let quest_id = quest_id_gen();
 
         match quest_type {
             QuestType::BaseTier => {
-                // 0. Only approved providers can publish quests
-                if !self.is_approved(msg::source()) {
-                    return QuestEvent::Err { msg: String::from("You are not an approved provider!") }
+                // 0. Sanity check first
+                // Free gradings need to above a threshold
+                if quest_info.free_gradings < self.minumum_free_gradings {
+                    return QuestEvent::Err { msg: String::from("Free gradings need to be above the minimum threshold!") }
                 }
                 // 1. Construct the actual quest based on the incoming quest info
                 let base_tier_quest = BaseTierQuest {
-                    base: Base { 
-                        provider: msg::source(),
-                        institution_name: quest_info.institution_name,
-                        quest_name: quest_info.quest_name,
-                        description: quest_info.description,
-                        deliverables: quest_info.deliverables,
-                        deadline: quest_info.deadline,
-                        capacity: quest_info.capacity,
-                        skill_token_name: quest_info.skill_token_name,
-                        open_try: quest_info.open_try,
-                        contact_info: quest_info.contact_info,
-                        ..Default::default()
-                    },
+                    base: self.construct_quest_base(quest_info.clone()),
                     // TODO: need to check against the minimum allowance
                     free_gradings: quest_info.free_gradings,
                 };
@@ -107,9 +105,78 @@ impl Quests {
                 // 4. Return the event
                 QuestEvent::Ok { msg: String::from("Base tier quest published!") }
             },
-            _ => {
-                QuestEvent::Ok { msg: String::from("Quest published!") }
+            QuestType::MidTier => {
+                // 0. Sanity check first
+                // Free gradings need to above a threshold
+                if quest_info.free_gradings < self.minumum_free_gradings {
+                    return QuestEvent::Err { msg: String::from("Free gradings need to be above the minimum threshold!") }
+                }
+                // 1. Construct the actual quest based on the incoming quest info
+                let mid_tier_quest = MidTierQuest {
+                    base: self.construct_quest_base(quest_info.clone()),
+                    // TODO: need to check against the minimum allowance
+                    free_gradings: quest_info.free_gradings,
+                    hiring_for: quest_info.hiring_for,
+                    skill_tags: quest_info.skill_tags,
+                    reputation_nft: quest_info.reputation_nft,
+                };
+                // 2. Insert the incoming quests into the quest mapping
+                self.mid_tier_quests.insert(quest_id.clone(), mid_tier_quest);
+                // 3. Insert the quest status into the quest status mapping
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                // 4. Return the event
+                QuestEvent::Ok { msg: String::from("Mid tier quest published!") }
+            },
+            QuestType::TopTier => {
+                // 0. Sanity check first
+                // Application deadline must in the future
+                if quest_info.application_deadline < exec::block_height() {
+                    return QuestEvent::Err { msg: String::from("Application deadline needs to be in the future!") };
+                }
+                // 1. Construct the actual quest based on the incoming quest info
+                let top_tier_quest = TopTierQuest {
+                    base: self.construct_quest_base(quest_info.clone()),
+                    prize: quest_info.prize,
+                    application_deadline: quest_info.application_deadline,
+                    reputation_nft: quest_info.reputation_nft,
+                };
+                // 2. Insert the incoming quests into the quest mapping
+                self.top_tier_quests.insert(quest_id.clone(), top_tier_quest);
+                // 3. Insert the quest status into the quest status mapping
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                // 4. Return the event
+                QuestEvent::Ok { msg: String::from("Top tier quest published!") }
+            },
+            QuestType::Dedicated => {
+                // 1. Construct the actual quest based on the incoming quest info
+                let dedicated_quest = DedicatedQuest {
+                    base: self.construct_quest_base(quest_info.clone()),
+                    dedicated_to: quest_info.dedicated_to,
+                };
+                // 2. Insert the incoming quests into the quest mapping
+                self.dedicated_quests.insert(quest_id.clone(), dedicated_quest);
+                // 3. Insert the quest status into the quest status mapping
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                // 4. Return the event
+                QuestEvent::Ok { msg: String::from("Dedicated quest published!") }
             }
+        }
+    }
+
+    /// Construct the base of a quest
+    fn construct_quest_base(&self, quest_info: IncomingQuest) -> Base {
+        Base { 
+            provider: msg::source(),
+            institution_name: quest_info.institution_name,
+            quest_name: quest_info.quest_name,
+            description: quest_info.description,
+            deliverables: quest_info.deliverables,
+            deadline: quest_info.deadline,
+            capacity: quest_info.capacity,
+            skill_token_name: quest_info.skill_token_name,
+            open_try: quest_info.open_try,
+            contact_info: quest_info.contact_info,
+            ..Default::default()
         }
     }
 
@@ -119,6 +186,7 @@ impl Quests {
     }
 }
 
+/// Generate random id for quests
 fn quest_id_gen() -> String {
     exec::block_timestamp().to_string()
 }
