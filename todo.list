@@ -1,32 +1,10 @@
-1. add the quest contract address to the account contract's state
-3. add controls to ensure only the quest contract can call the following actions: AcceptInterview, AcceptOffer, RecruiterReject, SendInterview, SendOffer
-9. add partial state reader for the account contract
-10. fix the "whole state couldn't be read" issue in account contract
-11. add "change quest contract address" functionality to the owner
-12. if there are no matching quest id, the contract should return an error
-13. add actions and events for: QuestClaimed, QuestPublished, QuestCompleted
-14. change from HashMap to BTreeMap
-15. change init message from string to a dedicated struct
-16. add notification preferences to each account
-17. make the code DRY
-
-
-----------------------------------------------------------------------------------------
-
-For Quest Contract:
-
-1. merge status comparison of quest into one function: quest_status_match
-2. add function for quest contract owner to add approved recruiter
-3. add state functions
-4. remove ads link struct in the quest, because it is not possible to have those linkes before the quest is published
-5. change id, status, publisher, seeker_submission, seeker_status fields in quest to private
-6. add default value for the quest struct
-7. add maximum claimers field to Quest struct
-8. add change id function to Quest struct
-9. add communication to the account contract
-
-----------------------------------------------------------------------------------------
-
-For All Contracts:
-
-1. consider using gas reservation to let two contracts communicate with each other directly
+0. Add status tracking for each committer.
+1. Add quest publishing logic: only approved providers can publish.
+2. Add quest commiting logic: everyone can commit but one committer can only commit once to the same quest.
+3. Add quest submitting logic: the committer who committed to the quest can submit to the quest only once.
+4. Add quest grading logic: only the quest publisher can grade the quest. Gradings for each committer cannot be changed once published.
+5. Add quest modification logic: only the quest publisher can modify the quest.
+6. Add quest extention logic: only the quest publisher can extend the quest.
+7. Add quest closing logic: only the quest publisher can close the quest.
+8. Add quest retraction logic: only the quest publisher can retract the quest. Retract can only be done before any commiter shows up.
+9. Design a search logic that closely tracking the business plan.

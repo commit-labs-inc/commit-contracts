@@ -5,7 +5,7 @@ use gmeta::{In, InOut, Metadata};
 pub struct ProgramMetadata;
 
 impl Metadata for ProgramMetadata {
-    type Init = In<String>;
+    type Init = In<InitQuest>;
     type Handle = InOut<QuestAction, QuestEvent>;
     type Reply = ();
     type Others = ();
@@ -13,99 +13,171 @@ impl Metadata for ProgramMetadata {
     type State = ();
 }
 
+/// Init the quest contract with a list of approved providers
 #[derive(Debug, Encode, Decode, TypeInfo)]
-pub struct Quest {
-	// id of a quest, needs to change to a dedicated type in the future
-	pub id: u32,
-	// possible status of a quest
-	pub status: QuestStatus,
-	// recruiters who published the quest
-	pub publisher: ActorId,
-	// title of the quest, the type should be changed to a dedicated type for better security control
-	pub title: String,
-	// possible positions that a professor can offer
-	pub position: Position,
-	// deadline in the format of exec::block_height(),
-	// after the deadline has passed, status will automatically change to closed,
-	// no more claims and submissions allowed after the deadline. 
-	pub deadline: u32,
-	// a string of the uri of the image,
-	// None means no image for this quest
-	pub img: Option<String>,
-	// descriptions of deliverables of this quest
-	// this field is only displayed to seekers
-	pub deliverables: Vec<String>,
-	// String represents the uri of the actual submission,
-	// for now we only accept one uri per seeker,
-	// should use IPFS cid and accept more uris per seeker in the future.
-	pub seeker_submission: BTreeMap<ActorId, String>,
-	// seeker's status of a quest
-	pub seeker_status: BTreeMap<ActorId, Status>,
-	// this probably needs to change to a dedicated type for better screen display
-	pub details: String,
+pub struct InitQuest {
+	pub approved_providers: Vec<ActorId>,
 }
 
-impl Quest {
-	// method to check if a quest is complete
-	pub fn is_complete(&self) -> bool {
-		!self.title.is_empty()
-			&& !self.deliverables.is_empty()
-			&& !self.details.is_empty()
-	}
-	// check if a quest is open
-	pub fn is_open(&self) -> bool {
-		self.status == QuestStatus::Open
-	}
-	// check if a quest is closed
-	pub fn is_closed(&self) -> bool {
-		self.status == QuestStatus::Closed
-	}
-	// check if a seeker's current status matches the status given
-	pub fn seeker_status_match(&self, key: &ActorId, status: Status) -> bool {
-		*self.seeker_status.get(key).unwrap() == status
-	}
-	// add a seeker's submission to the quest
-	pub fn add_submission(&mut self, seeker: ActorId, submission: String) {
-		self.seeker_submission.insert(seeker, submission);
-	}
-	// change a seeker's status of a quest
-	pub fn change_seeker_status(&mut self, key: ActorId, status: Status) {
-		self.seeker_status.insert(key, status);
-	}
+/// Base structure for all quests
+#[derive(Debug, Encode, Decode, TypeInfo)]
+struct Base {
+	/// The unique identifier of a quest in the format of a decentralized storage id.
+	///
+	/// Functional requriements:
+	/// 1. collision check need to be performed against existing quests before publishing.
+	quest_id: String,
+	/// Security requirements:
+	/// 1. institution and quest name needs to conform to social norm.
+	institution_name: String,
+	quest_name: String,
+	/// Short descriptions about quests, ideally <= 10 sentences.
+	description: String,
+	/// Describe what are expected as submissions from seekers.
+	deliverables: String,
+	/// Specify the maximum seekers this quest willing to accept.
+	/// That means it can handle at most $capacity concurrent ongoing seekers.
+	capacity: u32,
+	/// Specify which token (singular) will be issued as rewards.
+	skill_token_name: SkillToken,
+	/// Specify deadline in the format of Vara block height.
+	///
+	/// Functional requirements:
+	/// 1. the specified deadline must > current block height.
+	deadline: u64,
+	/// Specify whether the quest will consume seekers free trying numbers or not.
+	/// 
+	/// Recommendations:
+	/// 1. Top-tier quests are always set to 'True' - not consume.
+	/// 2. Mid-tier quests are encouraged to set to 'False' - consume to let seekers jump-start with cautious.
+	/// 3. Base-tier quests are encouraged to set to 'True' to let seekers bootstrap themselves.
+	open_try: bool,
+	/// The wallet address used to publish the quest.
+	provider: ActorId,
+	/// The person who is directly in charge of managing this quest.
+	provider_name: String,
+	/// Link to other social apps, e.g. gmail, X, and etc.
+	///
+	/// Security requirements:
+	/// 1. validity of the links should be checked by us after publishing.
+	/// 2. malformed links should be checked automatically before publishing.
+	/// 3. notifications should be displayed to user about potential security issues.
+	contact_info: String,
+	// ----------------------------------------------------------------------------
+	// Below are dynamic informations for a quest
+
+	/// Manage submissions from seekers.
+	/// We use google drive links now and will transition to include decentralized storage in the future.
+	submissions: BTreeMap<ActorId, Option<String>>,
+	/// Manage gradings for seekers.
+	gradings: BTreeMap<ActorId, Option<Gradings>>,
+	/// A quest can only get extended beyond its deadline once.
+	extended: bool,
+	/// A quest can only get modified once within a time limit start from the appearace of the first claimer.
+	modified: bool,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
+// Base Tier - Skill Assessment Quest
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub struct BaseTierQuest {
+	base: Base,
+	/// Specified by the quest providers, how many free gradings they are willing to hand out to seekers.
+	/// Seekers who submitted without any free gradings left will be charged a minor amount of fee that will splitted between providers and Commit platform.
+	///
+	/// Functional requirements:
+	/// 1. range needs to > MIN_LIMIT.
+	free_gradings: u8,
+}
+
+// Mid Tier - Hiring Purpose Quest
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub struct MidTierQuest {
+	base: Base,
+	/// Specified by the quest providers, how many free gradings they are willing to hand out to seekers.
+	/// Seekers who submitted without any free gradings left will be charged a minor amount of fee that will splitted between providers and Commit platform.
+	///
+	/// Functional requirements:
+	/// 1. range needs to > MIN_LIMIT.
+	free_gradings: u8,
+	/// Specify the position the provider is hiring for, e.g. Master, Ph.D., Internship.
+	hiring_for: String,
+	/// Specify which type of skill NFT is needed to start working on this quest.
+	skill_tags: SkillNFT,
+	/// Specify which reputation will be issued as rewards.
+	/// Notice that there is also an implicit reward - internship opportunity.
+	reputation_nft: RepuNFT,
+}
+
+// Top Tier - Competition Quest
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub struct TopTierQuest {
+	base: Base,
+	/// Specified by the competition organizer.
+	///
+	/// Security requirements:
+	/// 1. disclaimers need to display to seekers.
+	prize: String,
+	/// Specify deadline in the format of Vara block height.
+	/// This deadline is different than the `deadline` field in the base structure,
+	/// here it means after which users are not able to claim this quest anymore.
+	///
+	/// Functional requirements:
+	/// 1. the specified deadline must > the current Vara block height.
+	application_deadline: u64,
+	/// Specify which reputation will be issued as rewards.
+	/// Notice that there is also an implicit reward - global recognition (fame)
+	reputation_nft: RepuNFT,
+}
+
+// Dedicated Quest
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub struct DedicatedQuest {
+	base: Base,
+	/// Specify the wallet addresses that can claim this quest.
+	///
+	/// If this part is left empty, it means anyone knows the passcodes can claim this quest,
+	/// suitable for the usage by providers who can't gather all the wallet addressess needed upfront, e.g. online courses and etc.
+	dedicated_to: Option<Vec<ActorId>>,
+}
+
+/// Possible gradings for every quest.
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub enum Gradings {
+	Accept,
+	Good,
+	Reject,
+}
+
+/// List all possible skill tokens we support.
+/// This list should be manageable through OpenGov.
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub enum SkillToken {
+	Python,
+	Simulation,
+}
+
+/// List all possible skill badges we can issue, they should be matched 1-1 to skill tokens.
+/// This list should be manageable through OpenGov.
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub enum SkillNFT {
+	Python,
+	Simulation,
+}
+
+/// List all possible reputation nfts we can provide, this should be more generall then the skill nfts.
+/// This list should be manageable through OpenGov, but preferabily with a faster voting process setup.
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub enum RepuNFT {
+	CSHackathonWinner,
+	ResearchCompetitionWinner,
+	CSInternship,
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum QuestStatus {
 	Open,
 	Full,
 	Closed,
-}
-
-#[derive(Debug, Encode, Decode, TypeInfo)]
-pub enum Position {
-	Intern,
-	Master,
-	Doctor,
-	PostDoc,
-}
-
-#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
-pub enum Status {
-	Claimed,
-	WaitingReply,
-	InterviewReceived,
-	InterviewAccepted,
-	OfferReceived,
-	OfferAccepted,
-	Rejected,
-}
-
-#[derive(Debug, Encode, Decode, TypeInfo)]
-pub struct Ads {
-	// channel of the ads, e.g. LinkedIn, WeChat and etc.
-	channel: String,
-	// link to the ads
-	url: String,
 }
 
 #[derive(Encode, Decode, TypeInfo)]
@@ -118,9 +190,7 @@ pub enum QuestAction {
 	/// 
 	/// Arguments:
 	/// * quest: the quest to be published.
-	Publish {
-		quest: QuestInfo,
-	},
+	Publish,
 	/// Seekers claim a quest.
 	/// 
 	/// Requirements:
@@ -129,9 +199,7 @@ pub enum QuestAction {
 	/// 
 	/// Arguments:
 	/// * quest_id: the id of the quest to be claimed.
-	Claim {
-		quest_id: u32,
-	},
+	Commit,
 	/// Seekers submit their submissions.
 	/// 
 	/// Requirements:
@@ -142,129 +210,22 @@ pub enum QuestAction {
 	/// Arguments:
 	/// * quest_id: the id of the quest to be claimed.
 	/// * submission: the submission of the seeker.
-	Submit {
-		quest_id: u32,
-		// the external url of the submission, e.g. Google drive link
-		// this should be changed to IPFS cid in the future
-		submission: String,
-	},
-	/// Recruiters send interview invitations to seekers.
-	/// 
-	/// Requirements:
-	/// * the quest of the given id must exist.
-	/// * the seeker must have submitted to the quest.
-	/// * the msg sender must be an approved recruiter.
-	/// 
-	/// Arguments:
-	/// * seeker: the id of the seeker to be interviewed.
-	/// * quest_id: the id of the quest.
-	Interview {
-		seeker: ActorId,
-		quest_id: u32,
-	},
-	/// Seekers accept interview invitations.
-	/// 
-	/// Requirements:
-	/// * the quest of the given id must exist.
-	/// * the seeker must have received an interview invitation.
-	/// 
-	/// Arguments:
-	/// * quest_id: the id of the quest.
-	AcceptInterview {
-		quest_id: u32,
-	},
-	/// Recruiters send offers to seekers.
-	/// 
-	/// Requirements:
-	/// * the quest of the given id must exist.
-	/// * the seeker must have accepted an interview invitation.
-	/// * the msg sender must be an approved recruiter.
-	/// 
-	/// Arguments:
-	/// * seeker: the id of the seeker to be offered.
-	/// * quest_id: the id of the quest.
-	Offer {
-		seeker: ActorId,
-		quest_id: u32,
-	},
-	/// Seekers accept offers.
-	/// 
-	/// Requirements:
-	/// * the quest of the given id must exist.
-	/// * the seeker must have received an offer.
-	/// 
-	/// Arguments:
-	/// * quest_id: the id of the quest.
-	AcceptOffer {
-		quest_id: u32,
-	},
-	/// Recruiters reject seekers after they submitted or interviewed.
-	/// 
-	/// Requirements:
-	/// * the quest of the given id must exist.
-	/// * the seeker must have either submitted or interviewed.
-	/// * the msg sender must be an approved recruiter.
-	/// 
-	/// Arguments:
-	/// * seeker: the id of the seeker to be rejected.
-	/// * quest_id: the id of the quest.
-	Reject {
-		seeker: ActorId,
-		quest_id: u32,
-	},
-	// TODO: the logic of closing a quest needs to be discussed
-	Close {
-		quest_id: u32,
-	},
-	/// Add reruiters to the approved recruiters list.
-	/// 
-	/// Requirements:
-	/// * The sender must be the owner of the quest contract.
-	/// * The recruiter must not be in the approved recruiters list.
-	/// 
-	/// Arguments:
-	/// * recruiter: the id of the recruiter to be added.
-	AddRecruiter {
-		recruiter: ActorId,
-	},
-	/// Change the stored address of the account contract.
-	/// 
-	/// Requirements:
-	/// * The sender must be the owner of the quest contract.
-	/// 
-	/// Arguments:
-	/// * new_account_contract: the new address of the account contract.
-	ChangeAccountContract {
-		new_account_contract: ActorId,
-	},
-}
-
-#[derive(Encode, Decode, TypeInfo)]
-pub struct QuestInfo {
-    pub id: u32,
-    pub title: String,
-    pub position: Position,
-    pub deadline: u32,
-    pub img: Option<String>,
-    pub deliverables: Vec<String>,
-    pub details: String,
+	Submit,
+	
+	Grade,
+	Close,
+	Extend,
+	Modify,
+	Retract,
+	Search,
 }
 
 #[derive(Encode, Decode, TypeInfo)]
 pub enum QuestEvent {
-	ContractInitiated,
-	OperationSuccess {
-		// name of the operation
-		name: String,
-		// exec::block_timestamp()
-		timestamp: u64,
+	Ok {
+		msg: String,
 	},
-	OperationErr {
-		// name of the operation
-		name: String,
-		// why is it failed
-		reason: String,
-		// exec::block_timestamp()
-		timestamp: u64,
-	}
+	Err {
+		msg: String,
+	},
 }
