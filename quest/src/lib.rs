@@ -1,8 +1,7 @@
 #![no_std]
 use gstd::{collections::BTreeMap, exec, msg, prelude::*, ActorId};
 use quest_io::*;
-
-type QuestId = String;
+use quest_io::QuestId;
 
 #[derive(Default, Encode, Decode, Debug, TypeInfo)]
 pub struct Quests {
@@ -49,8 +48,8 @@ extern "C" fn handle() {
         QuestAction::Publish { quest_type, quest_info } => {
             let _ = msg::reply(quests.publish(quest_type, quest_info), 0);
         },
-        QuestAction::Commit => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("New commiter added!") }, 0);
+        QuestAction::Commit { quest_id } => {
+            let _ = msg::reply(quests.commit(&quest_id), 0);
         },
         QuestAction::Submit => {
             let _ = msg::reply(QuestEvent::Ok { msg: String::from("New submissions!") }, 0);
@@ -103,7 +102,7 @@ impl Quests {
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
                 // 4. Return the event
-                QuestEvent::Ok { msg: String::from("Base tier quest published!") }
+                QuestEvent::Ok { msg: String::from(quest_id) }
             },
             QuestType::MidTier => {
                 // 0. Sanity check first
@@ -125,7 +124,7 @@ impl Quests {
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
                 // 4. Return the event
-                QuestEvent::Ok { msg: String::from("Mid tier quest published!") }
+                QuestEvent::Ok { msg: String::from(quest_id) }
             },
             QuestType::TopTier => {
                 // 0. Sanity check first
@@ -145,7 +144,7 @@ impl Quests {
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
                 // 4. Return the event
-                QuestEvent::Ok { msg: String::from("Top tier quest published!") }
+                QuestEvent::Ok { msg: String::from(quest_id) }
             },
             QuestType::Dedicated => {
                 // 1. Construct the actual quest based on the incoming quest info
@@ -158,9 +157,85 @@ impl Quests {
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
                 // 4. Return the event
-                QuestEvent::Ok { msg: String::from("Dedicated quest published!") }
+                QuestEvent::Ok { msg: String::from(quest_id) }
             }
         }
+    }
+
+    /// Opportunity seekers commit (claim) a quest
+    fn commit(&mut self, quest_id: &QuestId) -> QuestEvent {
+        // Everyone can commit to a quest, but that quest must exists
+        if !self.quest_status.contains_key(quest_id) {
+            return QuestEvent::Err { msg: String::from("Quest does not exist!") };
+        }
+
+        // 1. Check if the quest is open
+        // Notice: quest is automatically closed after the deadline is passed, so we don't need to check that here
+        if self.quest_status.get(quest_id).unwrap() != &QuestStatus::Open {
+            return QuestEvent::Err { msg: String::from("Quest is not open!") };
+        }
+
+        // 2. Check if the entry requirements of the quest are met
+        if self.base_tier_quests.contains_key(quest_id) {
+            // This means the quest is a base tier quest, which does not have any entry requirements.
+            let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
+            if quest.base.submissions.contains_key(&msg::source()) {
+                return QuestEvent::Err { msg: String::from("Already committed to this quest!") };
+            }
+            quest.base.submissions.insert(msg::source(), SeekerStatus::Waiting);
+            quest.base.gradings.insert(msg::source(), None);
+            return QuestEvent::Ok { msg: String::from("Base-tier quest committed!") };
+        }
+        if self.mid_tier_quests.contains_key(quest_id) {
+            // This means the quest is a mid tier quest, thus we need to check the following things:
+            // 1) The seeker has the required skill NFT or
+            // 2) The seeker has enough USDT to stake
+            let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
+            // Check if there are still free gradings left, if not, staking is required
+            if quest.free_gradings > 0 {
+                quest.free_gradings -= 1;
+                if check_skill_nft(msg::source(), quest.skill_tags) {
+                    if quest.base.submissions.contains_key(&msg::source()) {
+                        return QuestEvent::Err { msg: String::from("Already committed to this quest!") };
+                    }
+                    quest.base.submissions.insert(msg::source(), SeekerStatus::Waiting);
+                    quest.base.gradings.insert(msg::source(), None);
+                    quest.base.capacity -= 1;
+                    if quest.base.capacity == 0 {
+                        self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
+                    }
+                    consume_skill_nft(msg::source(), quest.skill_tags);
+                    return QuestEvent::Ok { msg: String::from("Mid-tier quest committed!") };
+                } else {
+                    return QuestEvent::Err { msg: String::from("You need skill NFT to commit to this quest") };
+                }
+            } else {
+                // TODO: implement proper logic after the staking logic is ready
+                return QuestEvent::Err { msg: String::from("No free gradings left!") };
+            }
+        }
+        if self.top_tier_quests.contains_key(quest_id) {
+            let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
+            // This means the quest is a top tier quest, thus we need to check the following things:
+            // 1) The application deadline has not passed
+            if quest.application_deadline < exec::block_height() {
+                return QuestEvent::Err { msg: String::from("Application deadline has passed!") };
+            }
+
+            if quest.base.submissions.contains_key(&msg::source()) {
+                return QuestEvent::Err { msg: String::from("Already committed to this quest!") };
+            }
+            quest.base.submissions.insert(msg::source(), SeekerStatus::Waiting);
+            quest.base.gradings.insert(msg::source(), None);
+            quest.base.capacity -= 1;
+            if quest.base.capacity == 0 {
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
+            }
+            return QuestEvent::Ok { msg: String::from("Top-tier quest committed!") };
+        }
+
+
+        return QuestEvent::Err { msg: String::from("Quest commit failed.") };
     }
 
     /// Construct the base of a quest
@@ -184,6 +259,18 @@ impl Quests {
     fn is_approved(&self, sender: ActorId) -> bool {
         self.approved_providers.contains(&sender)
     }
+}
+
+// Check if the seeker has the required skill NFT
+// TODO: implement after the reputation contract is ready
+fn check_skill_nft(_seeker: ActorId, _skill_nft: SkillNFT) -> bool {
+    true
+}
+
+// Consume the skill NFT after the successful commit
+// TODO: implement after the reputation contract is ready 
+fn consume_skill_nft(_seeker: ActorId, _skill_nft: SkillNFT) -> bool {
+    true
 }
 
 /// Generate random id for quests

@@ -3,6 +3,7 @@ use gstd::{prelude::*, ActorId, collections::BTreeMap};
 use gmeta::{In, InOut, Metadata};
 
 pub struct ProgramMetadata;
+pub type QuestId = String;
 
 impl Metadata for ProgramMetadata {
     type Init = In<InitQuest>;
@@ -185,7 +186,7 @@ pub enum SkillToken {
 
 /// List all possible skill badges we can issue, they should be matched 1-1 to skill tokens.
 /// This list should be manageable through OpenGov.
-#[derive(Debug, Encode, Decode, TypeInfo, Clone)]
+#[derive(Debug, Encode, Decode, TypeInfo, Clone, Copy)]
 pub enum SkillNFT {
 	Python,
 	Simulation,
@@ -202,7 +203,7 @@ pub enum RepuNFT {
 	CSInternship,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub enum QuestStatus {
 	Open,
 	Full,
@@ -240,7 +241,9 @@ pub enum QuestAction {
 	/// 
 	/// Arguments:
 	/// * quest_id: the id of the quest to be claimed.
-	Commit,
+	Commit {
+		quest_id: QuestId,
+	},
 	/// Seekers submit their submissions.
 	/// 
 	/// Requirements:
