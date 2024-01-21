@@ -1,7 +1,7 @@
 0. ✅ Add status tracking for each committer.
 1. ✅ Add quest publishing logic: only approved providers can publish.
-2. Add quest commiting logic: everyone can commit but one committer can only commit once to the same quest.
-3. Add quest submitting logic: the committer who committed to the quest can submit to the quest only once.
+2. ✅ Add quest commiting logic: everyone can commit but one committer can only commit once to the same quest.
+3. ✅ Add quest submitting logic: the committer who committed to the quest can submit to the quest only once.
 4. Add quest grading logic: only the quest publisher can grade the quest. Gradings for each committer cannot be changed once published.
 5. Add quest modification logic: only the quest publisher can modify the quest.
 6. Add quest extention logic: only the quest publisher can extend the quest.
@@ -10,3 +10,10 @@
 9. Design a search logic that closely tracking the business plan.
 
 ---------------------------------------------------------------------------------------
+
+1. implement check skill nft.
+2. implement consume skill nft.
+3. implement dedicated logic for dedicated quests.
+4. current implementation of submit is ugly.
+5. implement the skill token issuance function in grade after the reputation contract is ready.
+6. too many repetitive codes currently in the contract, trim it before implementing the modification function.
