@@ -168,7 +168,7 @@ pub enum SeekerStatus {
 }
 
 /// Possible gradings for every quest.
-#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
+#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq, Clone)]
 pub enum Gradings {
 	Accept,
 	Good,
@@ -260,7 +260,12 @@ pub enum QuestAction {
 		submission: Submmision,
 	},
 	
-	Grade,
+	Grade {
+		quest_id: QuestId,
+		commiter: ActorId,
+		submission: Submmision,
+		grading: Gradings,
+	},
 	Close,
 	Extend,
 	Modify,
