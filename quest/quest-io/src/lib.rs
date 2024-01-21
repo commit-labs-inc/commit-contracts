@@ -2,6 +2,8 @@
 use gstd::{prelude::*, ActorId, collections::BTreeMap};
 use gmeta::{In, InOut, Metadata};
 
+mod helper_functions;
+
 pub struct ProgramMetadata;
 pub type QuestId = String;
 pub type Submmision = String;
@@ -75,6 +77,37 @@ pub struct Base {
 	pub modified: bool,
 }
 
+impl Base {
+	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String> {
+		if self.submissions.get(&msg_src).unwrap() != &SeekerStatus::Waiting {
+			return Err(String::from("You have not committed to this quest!"));
+		}
+		self.submissions.insert(msg_src, SeekerStatus::Submitted(submission));
+		return Ok(());
+	}
+
+	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, gradings: Gradings) -> Result<(), String> {
+		if self.provider != msg_src {
+			return Err(String::from("Only the provider can grade the submissions!"));
+		}
+		// The gradee must have submitted to the quest
+		if self.submissions.get(&commiter).unwrap() != &SeekerStatus::Submitted(submission) {
+			return Err(String::from("The gradee has not submitted to this quest!"));
+		}
+		
+		self.gradings.insert(commiter, Some(gradings.clone()));
+		self.submissions.insert(commiter, SeekerStatus::Graded(gradings));
+
+		return Ok(());
+	}
+}
+
+pub trait QuestTrait {
+	fn commit(&mut self, msg_src: ActorId) -> Result<(), String>;
+	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String>;
+	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, grading: Gradings) -> Result<(), String>;
+}
+
 #[derive(Debug, Encode, Decode, TypeInfo, Clone)]
 pub struct IncomingQuest {
 	pub institution_name: String,
@@ -108,6 +141,35 @@ pub struct BaseTierQuest {
 	pub free_gradings: u8,
 }
 
+impl QuestTrait for BaseTierQuest {
+	fn commit(&mut self, msg_src: ActorId) -> Result<(), String> {
+		if self.base.submissions.contains_key(&msg_src) {
+			return Err(String::from("Already committed to this quest!"));
+		}
+		self.base.submissions.insert(msg_src, SeekerStatus::Waiting);
+		self.base.gradings.insert(msg_src, None);
+		return Ok(());
+	}
+
+	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String> {
+		if let Err(e) = self.base.submit(msg_src, submission) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+	}
+
+	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, gradings: Gradings) -> Result<(), String> {
+		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+		// TODO: implement the issuance of skill tokens after the reputation contract is ready
+        // ....
+	}
+}
+
 // Mid Tier - Hiring Purpose Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct MidTierQuest {
@@ -125,6 +187,51 @@ pub struct MidTierQuest {
 	/// Specify which reputation will be issued as rewards.
 	/// Notice that there is also an implicit reward - internship opportunity.
 	pub reputation_nft: RepuNFT,
+}
+
+impl QuestTrait for MidTierQuest {
+	fn commit(&mut self, msg_src: ActorId) -> Result<(), String> {
+		// For mid tier quests, we need to check the following things:
+        // 1) The seeker has the required skill NFT or
+    	// 2) The seeker has enough USDT to stake
+
+		// Check if there are still free gradings left, if not, staking is required
+		if self.free_gradings > 0 {
+			self.free_gradings -= 1;
+			if helper_functions::check_skill_nft(msg_src, self.skill_tags) {
+				if self.base.submissions.contains_key(&msg_src) {
+					return Err(String::from("Already committed to this quest!"));
+				}
+				self.base.submissions.insert(msg_src, SeekerStatus::Waiting);
+				self.base.gradings.insert(msg_src, None);
+				helper_functions::consume_skill_nft(msg_src, self.skill_tags);
+				return Ok(());
+			} else {
+				return Err(String::from("No skill NFT found!"));
+			}
+		} else {
+			// TODO: implement proper logic after the staking logic is ready
+			return Err(String::from("No free gradings left!"));
+		}
+	}
+
+	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String> {
+		if let Err(e) = self.base.submit(msg_src, submission) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+	}
+
+	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, gradings: Gradings) -> Result<(), String> {
+		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+		// TODO: implement the issuance of skill tokens after the reputation contract is ready
+        // ....
+	}
 }
 
 // Top Tier - Competition Quest
@@ -148,6 +255,42 @@ pub struct TopTierQuest {
 	pub reputation_nft: RepuNFT,
 }
 
+impl QuestTrait for TopTierQuest {
+	// For top tier quests, we need to check the following things:
+    // 1) The application deadline has not passed
+	fn commit(&mut self, msg_src: ActorId) -> Result<(), String> {
+		if self.application_deadline < gstd::exec::block_height() {
+			return Err(String::from("Application deadline has passed!"));
+		}
+
+		if self.base.submissions.contains_key(&msg_src) {
+			return Err(String::from("Already committed to this quest!"));
+		}
+		self.base.submissions.insert(msg_src, SeekerStatus::Waiting);
+		self.base.gradings.insert(msg_src, None);
+
+		return Ok(());
+	}
+
+	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String> {
+		if let Err(e) = self.base.submit(msg_src, submission) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+	}
+
+	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, gradings: Gradings) -> Result<(), String> {
+		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+		// TODO: implement the issuance of skill tokens after the reputation contract is ready
+    	// ....
+	}
+}
+
 // Dedicated Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct DedicatedQuest {
@@ -157,6 +300,43 @@ pub struct DedicatedQuest {
 	/// If this part is left empty, it means anyone knows the passcodes can claim this quest,
 	/// suitable for the usage by providers who can't gather all the wallet addressess needed upfront, e.g. online courses and etc.
 	pub dedicated_to: Option<Vec<ActorId>>,
+}
+
+impl QuestTrait for DedicatedQuest {
+	// For dedicated quests, we need to check the following things:
+    // 1) The seeker is in the dedicated list
+	fn commit(&mut self, msg_src: ActorId) -> Result<(), String> {
+		if self.dedicated_to.is_some() {
+			if !self.dedicated_to.as_ref().unwrap().contains(&msg_src) {
+				return Err(String::from("You are not on the dedication list!"));
+			}
+		}
+		if self.base.submissions.contains_key(&msg_src) {
+			return Err(String::from("Already committed to this quest!"));
+		}
+		self.base.submissions.insert(msg_src, SeekerStatus::Waiting);
+		self.base.gradings.insert(msg_src, None);
+
+		return Ok(());
+	}
+
+	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String> {
+		if let Err(e) = self.base.submit(msg_src, submission) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+	}
+
+	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, gradings: Gradings) -> Result<(), String> {
+		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
+			return Err(e);
+		} else {
+			return Ok(());
+		}
+		// TODO: implement the issuance of skill tokens after the reputation contract is ready
+        // ....
+	}
 }
 
 /// The status of a seeker for a quest.

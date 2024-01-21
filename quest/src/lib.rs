@@ -184,68 +184,54 @@ impl Quests {
         if self.quest_status.get(quest_id).unwrap() != &QuestStatus::Open {
             return QuestEvent::Err { msg: String::from("Quest is not open!") };
         }
+        
+        let quest_type = self.quests_to_tiers.get(quest_id).unwrap();
+        match quest_type {
+            QuestType::BaseTier => {
+                // This means the quest is a base tier quest, which does not have any entry requirements.
+                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
 
-        // 2. Check if the entry requirements of the quest are met
-        if self.base_tier_quests.contains_key(quest_id) {
-            // This means the quest is a base tier quest, which does not have any entry requirements.
-            let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
-            if quest.base.submissions.contains_key(&msg::source()) {
-                return QuestEvent::Err { msg: String::from("Already committed to this quest!") };
-            }
-            quest.base.submissions.insert(msg::source(), SeekerStatus::Waiting);
-            quest.base.gradings.insert(msg::source(), None);
-            return QuestEvent::Ok { msg: String::from("Base-tier quest committed!") };
-        }
-        if self.mid_tier_quests.contains_key(quest_id) {
-            // This means the quest is a mid tier quest, thus we need to check the following things:
-            // 1) The seeker has the required skill NFT or
-            // 2) The seeker has enough USDT to stake
-            let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-            // Check if there are still free gradings left, if not, staking is required
-            if quest.free_gradings > 0 {
-                quest.free_gradings -= 1;
-                if check_skill_nft(msg::source(), quest.skill_tags) {
-                    if quest.base.submissions.contains_key(&msg::source()) {
-                        return QuestEvent::Err { msg: String::from("Already committed to this quest!") };
-                    }
-                    quest.base.submissions.insert(msg::source(), SeekerStatus::Waiting);
-                    quest.base.gradings.insert(msg::source(), None);
+                if let Err(e) = quest.commit(msg::source()) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    return QuestEvent::Ok { msg: String::from("Base-tier quest committed!") };
+                }
+            },
+            QuestType::MidTier => {
+                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
+                if let Err(e) = quest.commit(msg::source()) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    quest.base.capacity -= 1;
+				    if quest.base.capacity == 0 {
+					    self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
+				    }
+                    return QuestEvent::Ok { msg: String::from("Mid-tier quest committed!") };
+                }
+            },
+            QuestType::TopTier => {
+                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
+                
+                if let Err(e) = quest.commit(msg::source()) {
+                    return QuestEvent::Err { msg: e };
+                } else {
                     quest.base.capacity -= 1;
                     if quest.base.capacity == 0 {
                         self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
                     }
-                    consume_skill_nft(msg::source(), quest.skill_tags);
-                    return QuestEvent::Ok { msg: String::from("Mid-tier quest committed!") };
-                } else {
-                    return QuestEvent::Err { msg: String::from("You need skill NFT to commit to this quest") };
+                    return QuestEvent::Ok { msg: String::from("Top-tier quest committed!") };
                 }
-            } else {
-                // TODO: implement proper logic after the staking logic is ready
-                return QuestEvent::Err { msg: String::from("No free gradings left!") };
+            },
+            QuestType::Dedicated => {
+                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
+                
+                if let Err(e) = quest.commit(msg::source()) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    return QuestEvent::Ok { msg: String::from("Dedicated quest committed!") };
+                }
             }
         }
-        if self.top_tier_quests.contains_key(quest_id) {
-            let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-            // This means the quest is a top tier quest, thus we need to check the following things:
-            // 1) The application deadline has not passed
-            if quest.application_deadline < exec::block_height() {
-                return QuestEvent::Err { msg: String::from("Application deadline has passed!") };
-            }
-
-            if quest.base.submissions.contains_key(&msg::source()) {
-                return QuestEvent::Err { msg: String::from("Already committed to this quest!") };
-            }
-            quest.base.submissions.insert(msg::source(), SeekerStatus::Waiting);
-            quest.base.gradings.insert(msg::source(), None);
-            quest.base.capacity -= 1;
-            if quest.base.capacity == 0 {
-                self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
-            }
-            return QuestEvent::Ok { msg: String::from("Top-tier quest committed!") };
-        }
-
-
-        return QuestEvent::Err { msg: String::from("Quest commit failed.") };
     }
 
     /// The committer who committed to the quest can submit to the quest only once.
@@ -260,39 +246,39 @@ impl Quests {
         match quest_type {
             QuestType::BaseTier => {
                 let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
-                // One commiter can only submit once
-                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
-                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                
+                if let Err(e) = quest.submit(msg::source(), submission) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
                 }
-                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
-                return QuestEvent::Ok { msg: String::from("Submission successful!") };
             },
             QuestType::MidTier => {
                 let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-                // One commiter can only submit once
-                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
-                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                
+                if let Err(e) = quest.submit(msg::source(), submission) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
                 }
-                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
-                return QuestEvent::Ok { msg: String::from("Submission successful!") };
             },
             QuestType::TopTier => {
                 let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-                // One commiter can only submit once
-                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
-                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                
+                if let Err(e) = quest.submit(msg::source(), submission) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
                 }
-                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
-                return QuestEvent::Ok { msg: String::from("Submission successful!") };
             },
             QuestType::Dedicated => {
                 let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
-                // One commiter can only submit once
-                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
-                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                
+                if let Err(e) = quest.submit(msg::source(), submission) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
                 }
-                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
-                return QuestEvent::Ok { msg: String::from("Submission successful!") };
             }
         };
     }
@@ -308,94 +294,59 @@ impl Quests {
             QuestType::BaseTier => {
                 let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
                 // The grader must be the owner of the quest
-                if quest.base.provider != msg::source() {
-                    return QuestEvent::Err { msg: String::from("Only owner of the quest can grade!") };
+                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    quest.base.capacity += 1;
+                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
+                    if quest.base.capacity == 1 {
+                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                    }
+
+                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
                 }
-                // The gradee must have submitted to the quest
-                if quest.base.submissions.get(&commiter).unwrap() != &SeekerStatus::Submitted(submission) {
-                    return QuestEvent::Err { msg: String::from("The gradee has not submitted to the quest!") };
-                }
-                
-                quest.base.gradings.insert(commiter, Some(gradings.clone()));
-                quest.base.submissions.insert(commiter, SeekerStatus::Graded(gradings));
-                quest.base.capacity += 1;
-                // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                if quest.base.capacity == 1 {
-                    self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                }
-                // TODO: implement the issuance of skill tokens after the reputation contract is ready
-                // ....
-                
-                return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
             },
             QuestType::MidTier => {
                 let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-                // The grader must be the owner of the quest
-                if quest.base.provider != msg::source() {
-                    return QuestEvent::Err { msg: String::from("Only owner of the quest can grade!") };
-                }
-                // The gradee must have submitted to the quest
-                if quest.base.submissions.get(&commiter).unwrap() == &SeekerStatus::Submitted(submission) {
-                    return QuestEvent::Err { msg: String::from("The gradee has not submitted to the quest!") };
-                }
-                
-                quest.base.gradings.insert(commiter, Some(gradings.clone()));
-                quest.base.submissions.insert(commiter, SeekerStatus::Graded(gradings));
-                quest.base.capacity += 1;
-                // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                if quest.base.capacity == 1 {
-                    self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                }
+                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    quest.base.capacity += 1;
+                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
+                    if quest.base.capacity == 1 {
+                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                    }
 
-                // TODO: implement the issuance of reputation NFT after the reputation contract is ready
-                // ....
-                return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
+                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
+                }
             },
             QuestType::TopTier => {
                 let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-                // The grader must be the owner of the quest
-                if quest.base.provider != msg::source() {
-                    return QuestEvent::Err { msg: String::from("Only owner of the quest can grade!") };
-                }
-                // The gradee must have submitted to the quest
-                if quest.base.submissions.get(&commiter).unwrap() == &SeekerStatus::Submitted(submission) {
-                    return QuestEvent::Err { msg: String::from("The gradee has not submitted to the quest!") };
-                }
-                
-                quest.base.gradings.insert(commiter, Some(gradings.clone()));
-                quest.base.submissions.insert(commiter, SeekerStatus::Graded(gradings));
-                quest.base.capacity += 1;
-                // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                if quest.base.capacity == 1 {
-                    self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                }
+                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    quest.base.capacity += 1;
+                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
+                    if quest.base.capacity == 1 {
+                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                    }
 
-                // TODO: implement the issuance of reputation NFT after the reputation contract is ready
-                // ....
-                return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
+                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
+                }
             },
             QuestType::Dedicated => {
                 let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
-                // The grader must be the owner of the quest
-                if quest.base.provider != msg::source() {
-                    return QuestEvent::Err { msg: String::from("Only owner of the quest can grade!") };
-                }
-                // The gradee must have submitted to the quest
-                if quest.base.submissions.get(&commiter).unwrap() == &SeekerStatus::Submitted(submission) {
-                    return QuestEvent::Err { msg: String::from("The gradee has not submitted to the quest!") };
-                }
-                
-                quest.base.gradings.insert(commiter, Some(gradings.clone()));
-                quest.base.submissions.insert(commiter, SeekerStatus::Graded(gradings));
-                quest.base.capacity += 1;
-                // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                if quest.base.capacity == 1 {
-                    self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                }
+                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
+                    return QuestEvent::Err { msg: e };
+                } else {
+                    quest.base.capacity += 1;
+                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
+                    if quest.base.capacity == 1 {
+                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
+                    }
 
-                // TODO: implement the issuance of reputation NFT after the reputation contract is ready
-                // ....
-                return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
+                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
+                }
             }
         }
     }
@@ -421,18 +372,6 @@ impl Quests {
     fn is_approved(&self, sender: ActorId) -> bool {
         self.approved_providers.contains(&sender)
     }
-}
-
-// Check if the seeker has the required skill NFT
-// TODO: implement after the reputation contract is ready
-fn check_skill_nft(_seeker: ActorId, _skill_nft: SkillNFT) -> bool {
-    true
-}
-
-// Consume the skill NFT after the successful commit
-// TODO: implement after the reputation contract is ready 
-fn consume_skill_nft(_seeker: ActorId, _skill_nft: SkillNFT) -> bool {
-    true
 }
 
 /// Generate random id for quests
