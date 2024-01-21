@@ -4,6 +4,7 @@ use gmeta::{In, InOut, Metadata};
 
 pub struct ProgramMetadata;
 pub type QuestId = String;
+pub type Submmision = String;
 
 impl Metadata for ProgramMetadata {
     type Init = In<InitQuest>;
@@ -159,15 +160,15 @@ pub struct DedicatedQuest {
 }
 
 /// The status of a seeker for a quest.
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub enum SeekerStatus {
 	Waiting,
-	Submitted(String),
+	Submitted(Submmision),
 	Graded(Gradings),
 }
 
 /// Possible gradings for every quest.
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub enum Gradings {
 	Accept,
 	Good,
@@ -211,7 +212,7 @@ pub enum QuestStatus {
 }
 
 /// All possible quest types supported for now.
-#[derive(Encode, Decode, TypeInfo)]
+#[derive(Encode, Decode, TypeInfo, Debug)]
 pub enum QuestType {
 	BaseTier,
 	MidTier,
@@ -254,7 +255,10 @@ pub enum QuestAction {
 	/// Arguments:
 	/// * quest_id: the id of the quest to be claimed.
 	/// * submission: the submission of the seeker.
-	Submit,
+	Submit {
+		quest_id: QuestId,
+		submission: Submmision,
+	},
 	
 	Grade,
 	Close,

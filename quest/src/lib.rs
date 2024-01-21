@@ -19,6 +19,8 @@ pub struct Quests {
 		pub quest_status: BTreeMap<QuestId, QuestStatus>,
 		/// Listing of human and AI providers that are allowed to publish quests
 		pub approved_providers: Vec<ActorId>,
+        /// For fast search of a quest without the need to loop through the keys of the quest mappings
+        pub quests_to_tiers: BTreeMap<QuestId, QuestType>,
         minumum_free_gradings: u8,
 }
 
@@ -51,8 +53,8 @@ extern "C" fn handle() {
         QuestAction::Commit { quest_id } => {
             let _ = msg::reply(quests.commit(&quest_id), 0);
         },
-        QuestAction::Submit => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("New submissions!") }, 0);
+        QuestAction::Submit { quest_id, submission } => {
+            let _ = msg::reply(quests.submit(&quest_id, submission), 0);
         },
         QuestAction::Grade => {
             let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest graded!") }, 0);
@@ -101,7 +103,9 @@ impl Quests {
                 self.base_tier_quests.insert(quest_id.clone(), base_tier_quest);
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                // 4. Return the event
+                // 4. Insert the quest id into the quest to tier mapping
+                self.quests_to_tiers.insert(quest_id.clone(), QuestType::BaseTier);
+                // 5. Return the event
                 QuestEvent::Ok { msg: String::from(quest_id) }
             },
             QuestType::MidTier => {
@@ -123,7 +127,9 @@ impl Quests {
                 self.mid_tier_quests.insert(quest_id.clone(), mid_tier_quest);
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                // 4. Return the event
+                // 4. Insert the quest id into the quest to tier mapping
+                self.quests_to_tiers.insert(quest_id.clone(), QuestType::MidTier);
+                // 5. Return the event
                 QuestEvent::Ok { msg: String::from(quest_id) }
             },
             QuestType::TopTier => {
@@ -143,7 +149,9 @@ impl Quests {
                 self.top_tier_quests.insert(quest_id.clone(), top_tier_quest);
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                // 4. Return the event
+                // 4. Insert the quest id into the quest to tier mapping
+                self.quests_to_tiers.insert(quest_id.clone(), QuestType::TopTier);
+                // 5. Return the event
                 QuestEvent::Ok { msg: String::from(quest_id) }
             },
             QuestType::Dedicated => {
@@ -156,7 +164,9 @@ impl Quests {
                 self.dedicated_quests.insert(quest_id.clone(), dedicated_quest);
                 // 3. Insert the quest status into the quest status mapping
                 self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                // 4. Return the event
+                // 4. Insert the quest id into the quest to tier mapping
+                self.quests_to_tiers.insert(quest_id.clone(), QuestType::Dedicated);
+                // 5. Return the event
                 QuestEvent::Ok { msg: String::from(quest_id) }
             }
         }
@@ -236,6 +246,55 @@ impl Quests {
 
 
         return QuestEvent::Err { msg: String::from("Quest commit failed.") };
+    }
+
+    /// The committer who committed to the quest can submit to the quest only once.
+    /// There are not much to check for the submission action, since the check is done during the commit process.
+    fn submit(&mut self, quest_id: &QuestId, submission: Submmision) -> QuestEvent {
+        // The quest must exists
+        if !self.quest_status.contains_key(quest_id) {
+            return QuestEvent::Err { msg: String::from("Quest does not exist!") };
+        }
+        // Find where the quest_id is in the quest mappings
+        let quest_type = self.quests_to_tiers.get(quest_id).unwrap();
+        match quest_type {
+            QuestType::BaseTier => {
+                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
+                // One commiter can only submit once
+                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
+                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                }
+                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
+                return QuestEvent::Ok { msg: String::from("Submission successful!") };
+            },
+            QuestType::MidTier => {
+                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
+                // One commiter can only submit once
+                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
+                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                }
+                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
+                return QuestEvent::Ok { msg: String::from("Submission successful!") };
+            },
+            QuestType::TopTier => {
+                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
+                // One commiter can only submit once
+                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
+                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                }
+                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
+                return QuestEvent::Ok { msg: String::from("Submission successful!") };
+            },
+            QuestType::Dedicated => {
+                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
+                // One commiter can only submit once
+                if quest.base.submissions.get(&msg::source()).unwrap() != &SeekerStatus::Waiting {
+                    return QuestEvent::Err { msg: String::from("You have already submitted to this quest!") };
+                }
+                quest.base.submissions.insert(msg::source(), SeekerStatus::Submitted(submission));
+                return QuestEvent::Ok { msg: String::from("Submission successful!") };
+            }
+        };
     }
 
     /// Construct the base of a quest
