@@ -18,3 +18,4 @@
 5. implement the skill token issuance function in grade after the reputation contract is ready.
 6. too many repetitive codes currently in the contract, trim it before implementing the modification function.
 7. what part of quest is modifiable needs to be carefully designed.
+8. the modification for different types of quests should be different.

@@ -106,6 +106,8 @@ pub trait QuestTrait {
 	fn commit(&mut self, msg_src: ActorId) -> Result<(), String>;
 	fn submit(&mut self, msg_src: ActorId, submission: Submmision) -> Result<(), String>;
 	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, grading: Gradings) -> Result<(), String>;
+	fn modify(&mut self, msg_src: ActorId, base_info: Modifiable) -> Result<(), String>;
+	fn get_capacity(&self) -> u32;
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo, Clone)]
@@ -172,10 +174,35 @@ impl QuestTrait for BaseTierQuest {
 		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
 			return Err(e);
 		} else {
+			self.base.capacity += 1;
 			return Ok(());
 		}
 		// TODO: implement the issuance of skill tokens after the reputation contract is ready
         // ....
+	}
+
+	fn modify(&mut self, msg_src: ActorId, base_info: Modifiable) -> Result<(), String> {
+		if msg_src != self.base.provider {
+            return Err(String::from("Only the quest owner can modify!"));
+        }
+        if self.base.submissions.len() > 0 {
+            return Err(String::from("Quest can only get modified before any seeker claims it!"));
+        }
+        if self.base.modified {
+            return Err(String::from("Quest can only get modified once!"));
+        }
+        self.base.quest_name = base_info.quest_name;
+        self.base.description = base_info.description;
+        self.base.deliverables = base_info.deliverables;
+        self.base.deadline = base_info.deadline;
+        self.base.contact_info = base_info.contact_info;
+        self.base.modified = true;
+
+		return Ok(());
+	}
+
+	fn get_capacity(&self) -> u32 {
+		self.base.capacity
 	}
 }
 
@@ -214,6 +241,7 @@ impl QuestTrait for MidTierQuest {
 				self.base.submissions.insert(msg_src, SeekerStatus::Waiting);
 				self.base.gradings.insert(msg_src, None);
 				helper_functions::consume_skill_nft(msg_src, self.skill_tags);
+				self.base.capacity -= 1;
 				return Ok(());
 			} else {
 				return Err(String::from("No skill NFT found!"));
@@ -236,10 +264,35 @@ impl QuestTrait for MidTierQuest {
 		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
 			return Err(e);
 		} else {
+			self.base.capacity += 1;
 			return Ok(());
 		}
 		// TODO: implement the issuance of skill tokens after the reputation contract is ready
         // ....
+	}
+
+	fn modify(&mut self, msg_src: ActorId, base_info: Modifiable) -> Result<(), String> {
+		if msg_src != self.base.provider {
+            return Err(String::from("Only the quest owner can modify!"));
+        }
+        if self.base.submissions.len() > 0 {
+            return Err(String::from("Quest can only get modified before any seeker claims it!"));
+        }
+        if self.base.modified {
+            return Err(String::from("Quest can only get modified once!"));
+        }
+        self.base.quest_name = base_info.quest_name;
+        self.base.description = base_info.description;
+        self.base.deliverables = base_info.deliverables;
+        self.base.deadline = base_info.deadline;
+        self.base.contact_info = base_info.contact_info;
+        self.base.modified = true;
+
+		return Ok(());
+	}
+
+	fn get_capacity(&self) -> u32 {
+		self.base.capacity
 	}
 }
 
@@ -277,7 +330,8 @@ impl QuestTrait for TopTierQuest {
 		}
 		self.base.submissions.insert(msg_src, SeekerStatus::Waiting);
 		self.base.gradings.insert(msg_src, None);
-
+		self.base.capacity -= 1;
+		
 		return Ok(());
 	}
 
@@ -293,10 +347,35 @@ impl QuestTrait for TopTierQuest {
 		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
 			return Err(e);
 		} else {
+			self.base.capacity += 1;
 			return Ok(());
 		}
 		// TODO: implement the issuance of skill tokens after the reputation contract is ready
     	// ....
+	}
+
+	fn modify(&mut self, msg_src: ActorId, base_info: Modifiable) -> Result<(), String> {
+		if msg_src != self.base.provider {
+            return Err(String::from("Only the quest owner can modify!"));
+        }
+        if self.base.submissions.len() > 0 {
+            return Err(String::from("Quest can only get modified before any seeker claims it!"));
+        }
+        if self.base.modified {
+            return Err(String::from("Quest can only get modified once!"));
+        }
+        self.base.quest_name = base_info.quest_name;
+        self.base.description = base_info.description;
+        self.base.deliverables = base_info.deliverables;
+        self.base.deadline = base_info.deadline;
+        self.base.contact_info = base_info.contact_info;
+        self.base.modified = true;
+
+		return Ok(());
+	}
+
+	fn get_capacity(&self) -> u32 {
+		self.base.capacity
 	}
 }
 
@@ -341,10 +420,35 @@ impl QuestTrait for DedicatedQuest {
 		if let Err(e) = self.base.grade( msg_src, commiter, submission, gradings) {
 			return Err(e);
 		} else {
+			self.base.capacity += 1;
 			return Ok(());
 		}
 		// TODO: implement the issuance of skill tokens after the reputation contract is ready
         // ....
+	}
+
+	fn modify(&mut self, msg_src: ActorId, base_info: Modifiable) -> Result<(), String> {
+		if msg_src != self.base.provider {
+            return Err(String::from("Only the quest owner can modify!"));
+        }
+        if self.base.submissions.len() > 0 {
+            return Err(String::from("Quest can only get modified before any seeker claims it!"));
+        }
+        if self.base.modified {
+            return Err(String::from("Quest can only get modified once!"));
+        }
+        self.base.quest_name = base_info.quest_name;
+        self.base.description = base_info.description;
+        self.base.deliverables = base_info.deliverables;
+        self.base.deadline = base_info.deadline;
+        self.base.contact_info = base_info.contact_info;
+        self.base.modified = true;
+
+		return Ok(());
+	}
+
+	fn get_capacity(&self) -> u32 {
+		self.base.capacity
 	}
 }
 

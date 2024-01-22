@@ -185,52 +185,17 @@ impl Quests {
             return QuestEvent::Err { msg: String::from("Quest is not open!") };
         }
         
-        let quest_type = self.quests_to_tiers.get(quest_id).unwrap();
-        match quest_type {
-            QuestType::BaseTier => {
-                // This means the quest is a base tier quest, which does not have any entry requirements.
-                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
+        let quest = self.get_quest(quest_id);
 
-                if let Err(e) = quest.commit(msg::source()) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    return QuestEvent::Ok { msg: String::from("Base-tier quest committed!") };
-                }
-            },
-            QuestType::MidTier => {
-                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-                if let Err(e) = quest.commit(msg::source()) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    quest.base.capacity -= 1;
-				    if quest.base.capacity == 0 {
-					    self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
-				    }
-                    return QuestEvent::Ok { msg: String::from("Mid-tier quest committed!") };
-                }
-            },
-            QuestType::TopTier => {
-                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-                
-                if let Err(e) = quest.commit(msg::source()) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    quest.base.capacity -= 1;
-                    if quest.base.capacity == 0 {
-                        self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
-                    }
-                    return QuestEvent::Ok { msg: String::from("Top-tier quest committed!") };
-                }
-            },
-            QuestType::Dedicated => {
-                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
-                
-                if let Err(e) = quest.commit(msg::source()) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    return QuestEvent::Ok { msg: String::from("Dedicated quest committed!") };
-                }
+        // Notice that only mid-tier and top-tier capacity will change over each commit.
+        // The initial value of other types of quest's capacity must set to > 1.
+        if let Err(e) = quest.commit(msg::source()) {
+            return QuestEvent::Err { msg: e };
+        } else {
+            if quest.get_capacity() == 0 {
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Full);
             }
+            return QuestEvent::Ok { msg: String::from("Quest committed!") };
         }
     }
 
@@ -241,46 +206,14 @@ impl Quests {
         if !self.quest_status.contains_key(quest_id) {
             return QuestEvent::Err { msg: String::from("Quest does not exist!") };
         }
-        // Find where the quest_id is in the quest mappings
-        let quest_type = self.quests_to_tiers.get(quest_id).unwrap();
-        match quest_type {
-            QuestType::BaseTier => {
-                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
-                
-                if let Err(e) = quest.submit(msg::source(), submission) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
-                }
-            },
-            QuestType::MidTier => {
-                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-                
-                if let Err(e) = quest.submit(msg::source(), submission) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
-                }
-            },
-            QuestType::TopTier => {
-                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-                
-                if let Err(e) = quest.submit(msg::source(), submission) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
-                }
-            },
-            QuestType::Dedicated => {
-                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
-                
-                if let Err(e) = quest.submit(msg::source(), submission) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    return QuestEvent::Ok { msg: String::from("Submission successful!") };
-                }
-            }
-        };
+        // Find where the quest is in the quest mappings
+        let quest = self.get_quest(quest_id);
+
+        if let Err(e) = quest.submit(msg::source(), submission) {
+            return QuestEvent::Err { msg: e };
+        } else {
+            return QuestEvent::Ok { msg: String::from("Submission successful!") };
+        }
     }
 
     fn grade(&mut self, quest_id: &QuestId, commiter: ActorId, submission: Submmision, gradings: Gradings) -> QuestEvent {
@@ -289,65 +222,16 @@ impl Quests {
             return QuestEvent::Err { msg: String::from("Quest does not exist!") };
         }
         // Find where the quest_id is in the quest mappings
-        let quest_type = self.quests_to_tiers.get(quest_id).unwrap();
-        match quest_type {
-            QuestType::BaseTier => {
-                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
-                // The grader must be the owner of the quest
-                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    quest.base.capacity += 1;
-                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                    if quest.base.capacity == 1 {
-                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                    }
+        let quest = self.get_quest(quest_id);
 
-                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
-                }
-            },
-            QuestType::MidTier => {
-                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    quest.base.capacity += 1;
-                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                    if quest.base.capacity == 1 {
-                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                    }
-
-                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
-                }
-            },
-            QuestType::TopTier => {
-                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    quest.base.capacity += 1;
-                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                    if quest.base.capacity == 1 {
-                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                    }
-
-                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
-                }
-            },
-            QuestType::Dedicated => {
-                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
-                if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
-                    return QuestEvent::Err { msg: e };
-                } else {
-                    quest.base.capacity += 1;
-                    // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
-                    if quest.base.capacity == 1 {
-                        self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
-                    }
-
-                    return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
-                }
+        if let Err(e) = quest.grade(msg::source(), commiter, submission, gradings) {
+            return QuestEvent::Err { msg: e };
+        } else {
+            // If the capacity is 1, then that means the previous status if Full, so we change it to Open.
+            if quest.get_capacity() == 1 {
+                self.quest_status.insert(quest_id.clone(), QuestStatus::Open);
             }
+            return QuestEvent::Ok { msg: String::from("Quest successfully graded!") };
         }
     }
 
@@ -356,85 +240,14 @@ impl Quests {
     /// 
     /// Currently, only base inforamtion are modifiable.
     fn modify(&mut self, quest_id: &QuestId, base_info: Modifiable) -> QuestEvent {
-        let quest_tier = self.quests_to_tiers.get(quest_id).unwrap();
+        let quest = self.get_quest(quest_id);
+        
 
-        match quest_tier {
-            QuestType::BaseTier => {
-                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
-                if msg::source() != quest.base.provider {
-                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
-                }
-                if quest.base.submissions.len() > 0 {
-                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
-                }
-                if quest.base.modified {
-                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
-                }
-                quest.base.quest_name = base_info.quest_name;
-                quest.base.description = base_info.description;
-                quest.base.deliverables = base_info.deliverables;
-                quest.base.deadline = base_info.deadline;
-                quest.base.contact_info = base_info.contact_info;
-                quest.base.modified = true;
-            },
-            QuestType::MidTier => {
-                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
-                if msg::source() != quest.base.provider {
-                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
-                }
-                if quest.base.submissions.len() > 0 {
-                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
-                }
-                if quest.base.modified {
-                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
-                }
-                quest.base.quest_name = base_info.quest_name;
-                quest.base.description = base_info.description;
-                quest.base.deliverables = base_info.deliverables;
-                quest.base.deadline = base_info.deadline;
-                quest.base.contact_info = base_info.contact_info;
-                quest.base.modified = true;
-            },
-            QuestType::TopTier => {
-                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
-                if msg::source() != quest.base.provider {
-                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
-                }
-                if quest.base.submissions.len() > 0 {
-                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
-                }
-                if quest.base.modified {
-                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
-                }
-                quest.base.quest_name = base_info.quest_name;
-                quest.base.description = base_info.description;
-                quest.base.deliverables = base_info.deliverables;
-                quest.base.deadline = base_info.deadline;
-                quest.base.contact_info = base_info.contact_info;
-                quest.base.modified = true;
-            },
-            QuestType::Dedicated => {
-                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
-                if msg::source() != quest.base.provider {
-                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
-                }
-                if quest.base.submissions.len() > 0 {
-                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
-                }
-                if quest.base.modified {
-                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
-                }
-                quest.base.quest_name = base_info.quest_name;
-                quest.base.description = base_info.description;
-                quest.base.deliverables = base_info.deliverables;
-                quest.base.deadline = base_info.deadline;
-                quest.base.contact_info = base_info.contact_info;
-                quest.base.modified = true;
-            }
+        if let Err(e) = quest.modify(msg::source(), base_info) {
+            return QuestEvent::Err { msg: e };
+        } else {
+            return QuestEvent::Ok { msg: String::from("Quest modified!") };
         }
-
-
-        QuestEvent::Ok { msg: String::from("Quest modified!") }
     }
 
     /// Construct the base of a quest
@@ -457,6 +270,25 @@ impl Quests {
     /// Check against the approved providers list
     fn is_approved(&self, sender: ActorId) -> bool {
         self.approved_providers.contains(&sender)
+    }
+
+    /// Return the quest to caller for further modification.
+    fn get_quest(&mut self, quest_id: &QuestId) -> &mut dyn QuestTrait {
+        let quest_type = self.quests_to_tiers.get(quest_id).unwrap();
+        match quest_type {
+            QuestType::BaseTier => {
+                self.base_tier_quests.get_mut(quest_id).unwrap()
+            },
+            QuestType::MidTier => {
+                self.mid_tier_quests.get_mut(quest_id).unwrap()
+            },
+            QuestType::TopTier => {
+                self.top_tier_quests.get_mut(quest_id).unwrap()
+            },
+            QuestType::Dedicated => {
+                self.dedicated_quests.get_mut(quest_id).unwrap()
+            }
+        }
     }
 }
 
