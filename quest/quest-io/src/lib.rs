@@ -129,6 +129,15 @@ pub struct IncomingQuest {
 	pub dedicated_to: Option<Vec<ActorId>>,
 }
 
+#[derive(Debug, Encode, Decode, TypeInfo, Clone)]
+pub struct Modifiable {
+	pub quest_name: String,
+	pub description: String,
+	pub deliverables: String,
+	pub deadline: u64,
+	pub contact_info: String,
+}
+
 // Base Tier - Skill Assessment Quest
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct BaseTierQuest {
@@ -448,7 +457,10 @@ pub enum QuestAction {
 	},
 	Close,
 	Extend,
-	Modify,
+	Modify {
+		quest_id: QuestId,
+		base_info: Modifiable,
+	},
 	Retract,
 	Search,
 }

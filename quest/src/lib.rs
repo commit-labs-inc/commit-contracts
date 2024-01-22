@@ -59,8 +59,8 @@ extern "C" fn handle() {
         QuestAction::Grade { quest_id, commiter, submission, grading} => {
             let _ = msg::reply(quests.grade(&quest_id, commiter, submission, grading), 0);
         },
-        QuestAction::Modify => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest modified!") }, 0);
+        QuestAction::Modify { quest_id, base_info } => {
+            let _ = msg::reply(quests.modify(&quest_id, base_info), 0);
         },
         QuestAction::Extend => {
             let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest deadline extended!") }, 0);
@@ -349,6 +349,92 @@ impl Quests {
                 }
             }
         }
+    }
+
+    /// Each modification will send the whole quest information,
+    /// since there are not efficient ways to know which part got modified and which part did not.
+    /// 
+    /// Currently, only base inforamtion are modifiable.
+    fn modify(&mut self, quest_id: &QuestId, base_info: Modifiable) -> QuestEvent {
+        let quest_tier = self.quests_to_tiers.get(quest_id).unwrap();
+
+        match quest_tier {
+            QuestType::BaseTier => {
+                let quest = self.base_tier_quests.get_mut(quest_id).unwrap();
+                if msg::source() != quest.base.provider {
+                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
+                }
+                if quest.base.submissions.len() > 0 {
+                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
+                }
+                if quest.base.modified {
+                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
+                }
+                quest.base.quest_name = base_info.quest_name;
+                quest.base.description = base_info.description;
+                quest.base.deliverables = base_info.deliverables;
+                quest.base.deadline = base_info.deadline;
+                quest.base.contact_info = base_info.contact_info;
+                quest.base.modified = true;
+            },
+            QuestType::MidTier => {
+                let quest = self.mid_tier_quests.get_mut(quest_id).unwrap();
+                if msg::source() != quest.base.provider {
+                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
+                }
+                if quest.base.submissions.len() > 0 {
+                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
+                }
+                if quest.base.modified {
+                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
+                }
+                quest.base.quest_name = base_info.quest_name;
+                quest.base.description = base_info.description;
+                quest.base.deliverables = base_info.deliverables;
+                quest.base.deadline = base_info.deadline;
+                quest.base.contact_info = base_info.contact_info;
+                quest.base.modified = true;
+            },
+            QuestType::TopTier => {
+                let quest = self.top_tier_quests.get_mut(quest_id).unwrap();
+                if msg::source() != quest.base.provider {
+                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
+                }
+                if quest.base.submissions.len() > 0 {
+                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
+                }
+                if quest.base.modified {
+                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
+                }
+                quest.base.quest_name = base_info.quest_name;
+                quest.base.description = base_info.description;
+                quest.base.deliverables = base_info.deliverables;
+                quest.base.deadline = base_info.deadline;
+                quest.base.contact_info = base_info.contact_info;
+                quest.base.modified = true;
+            },
+            QuestType::Dedicated => {
+                let quest = self.dedicated_quests.get_mut(quest_id).unwrap();
+                if msg::source() != quest.base.provider {
+                    return QuestEvent::Err { msg: String::from("Only the quest owner can modify the quest!") }
+                }
+                if quest.base.submissions.len() > 0 {
+                    return QuestEvent::Err { msg: String::from("Quest cannot be modified after someone committed!") }
+                }
+                if quest.base.modified {
+                    return QuestEvent::Err { msg: String::from("Quest can only get modified once!") }
+                }
+                quest.base.quest_name = base_info.quest_name;
+                quest.base.description = base_info.description;
+                quest.base.deliverables = base_info.deliverables;
+                quest.base.deadline = base_info.deadline;
+                quest.base.contact_info = base_info.contact_info;
+                quest.base.modified = true;
+            }
+        }
+
+
+        QuestEvent::Ok { msg: String::from("Quest modified!") }
     }
 
     /// Construct the base of a quest
