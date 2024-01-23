@@ -71,8 +71,6 @@ pub struct Base {
 	pub submissions: BTreeMap<ActorId, SeekerStatus>,
 	/// Manage gradings for seekers.
 	pub gradings: BTreeMap<ActorId, Option<Gradings>>,
-	/// A quest can only get extended beyond its deadline once.
-	pub extended: bool,
 	/// A quest can only get modified once within a time limit start from the appearace of the first claimer.
 	pub modified: bool,
 }
@@ -108,6 +106,8 @@ pub trait QuestTrait {
 	fn grade(&mut self, msg_src: ActorId, commiter: ActorId, submission: Submmision, grading: Gradings) -> Result<(), String>;
 	fn modify(&mut self, msg_src: ActorId, base_info: Modifiable) -> Result<(), String>;
 	fn get_capacity(&self) -> u32;
+	fn get_owner(&self) -> ActorId;
+	fn get_deadline(&self) -> u64;
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo, Clone)]
@@ -204,6 +204,14 @@ impl QuestTrait for BaseTierQuest {
 	fn get_capacity(&self) -> u32 {
 		self.base.capacity
 	}
+
+	fn get_owner(&self) -> ActorId {
+		self.base.provider.clone()
+	}
+
+	fn get_deadline(&self) -> u64 {
+		self.base.deadline
+	}
 }
 
 // Mid Tier - Hiring Purpose Quest
@@ -294,6 +302,14 @@ impl QuestTrait for MidTierQuest {
 	fn get_capacity(&self) -> u32 {
 		self.base.capacity
 	}
+
+	fn get_owner(&self) -> ActorId {
+		self.base.provider.clone()
+	}
+
+	fn get_deadline(&self) -> u64 {
+		self.base.deadline
+	}
 }
 
 // Top Tier - Competition Quest
@@ -377,6 +393,14 @@ impl QuestTrait for TopTierQuest {
 	fn get_capacity(&self) -> u32 {
 		self.base.capacity
 	}
+
+	fn get_owner(&self) -> ActorId {
+		self.base.provider.clone()
+	}
+
+	fn get_deadline(&self) -> u64 {
+		self.base.deadline
+	}
 }
 
 // Dedicated Quest
@@ -450,6 +474,14 @@ impl QuestTrait for DedicatedQuest {
 	fn get_capacity(&self) -> u32 {
 		self.base.capacity
 	}
+
+	fn get_owner(&self) -> ActorId {
+		self.base.provider.clone()
+	}
+
+	fn get_deadline(&self) -> u64 {
+		self.base.deadline
+	}
 }
 
 /// The status of a seeker for a quest.
@@ -502,6 +534,7 @@ pub enum QuestStatus {
 	Open,
 	Full,
 	Closed,
+	Finished,
 }
 
 /// All possible quest types supported for now.
@@ -559,14 +592,13 @@ pub enum QuestAction {
 		submission: Submmision,
 		grading: Gradings,
 	},
-	Close,
-	Extend,
+	Close {
+		quest_id: QuestId,
+	},
 	Modify {
 		quest_id: QuestId,
 		base_info: Modifiable,
 	},
-	Retract,
-	Search,
 }
 
 #[derive(Encode, Decode, TypeInfo)]

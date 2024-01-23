@@ -62,17 +62,8 @@ extern "C" fn handle() {
         QuestAction::Modify { quest_id, base_info } => {
             let _ = msg::reply(quests.modify(&quest_id, base_info), 0);
         },
-        QuestAction::Extend => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest deadline extended!") }, 0);
-        },
-        QuestAction::Close => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest closed!") }, 0);
-        },
-        QuestAction::Retract => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("Quest retracted!") }, 0);
-        },
-        QuestAction::Search => {
-            let _ = msg::reply(QuestEvent::Ok { msg: String::from("Some actor searched a quest!") }, 0);
+        QuestAction::Close { quest_id } => {
+            let _ = msg::reply(quests.close(&quest_id), 0);
         },
     }
 }
@@ -206,6 +197,11 @@ impl Quests {
         if !self.quest_status.contains_key(quest_id) {
             return QuestEvent::Err { msg: String::from("Quest does not exist!") };
         }
+
+        if self.quest_status.get(quest_id).unwrap() == &QuestStatus::Finished {
+            return QuestEvent::Err { msg: String::from("You can't submit after a quest is finished!") };
+        }
+
         // Find where the quest is in the quest mappings
         let quest = self.get_quest(quest_id);
 
@@ -248,6 +244,34 @@ impl Quests {
         } else {
             return QuestEvent::Ok { msg: String::from("Quest modified!") };
         }
+    }
+
+    /// Close is designed to let providers close the quest before the deadline.
+    /// After closing, a quest will be marked as Closed, and no more commits are allowed,
+    /// but submissions and gradings are still allowed.
+    fn close(&mut self, quest_id: &QuestId) -> QuestEvent {
+        // The quest must exists
+        if !self.quest_status.contains_key(quest_id) {
+            return QuestEvent::Err { msg: String::from("Quest does not exist!") };
+        }
+
+        // Get the quest.
+        let quest = self.get_quest(quest_id);
+
+        // Only the owner of the quest can close.
+        if msg::source() != quest.get_owner() {
+            return QuestEvent::Err { msg: String::from("You are not the admin!") };
+        }
+
+        // Only can close if the quest is not in the status of Closed.
+        if self.quest_status.get(quest_id).unwrap() == &QuestStatus::Closed {
+            return QuestEvent::Err { msg: String::from("Quest is already closed!") };
+        }
+
+        // Close the quest.
+        self.quest_status.insert(quest_id.clone(), QuestStatus::Closed);
+
+        return QuestEvent::Ok { msg: String::from("Quest closed!") };
     }
 
     /// Construct the base of a quest
