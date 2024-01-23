@@ -11,3 +11,4 @@ gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], ta
 parity-scale-codec.workspace = true
 scale-info.workspace = true
 hashbrown.workspace = true
+primitive-types.workspace = true

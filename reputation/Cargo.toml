@@ -30,5 +30,6 @@ reputation-io = { path = "reputation-io" }
 hashbrown = "0.13.1"
 gear-wasm-builder = { git = "https://github.com/gear-tech/gear.git", features = ["wasm-opt"], tag = "v1.0.2" }
 gtest = { git = "https://github.com/gear-tech/gear.git", tag = "v1.0.2" }
+primitive-types = { version = "0.12", default-features = false }
 
 
