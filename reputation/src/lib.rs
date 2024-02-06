@@ -1,74 +1,150 @@
 #![no_std]
-use gstd::{ msg, prelude::*, collections::BTreeMap };
+use gstd::{collections::HashMap, msg, prelude::*, ActorId};
 use reputation_io::*;
 
-/// The multi token implementation.
-#[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct MTC {
-    tokens: BTreeMap<TokenId, Token>,
-    owners: BTreeMap<Owner, GeneralOwnerData>,
+#[derive(Debug, Default)]
+pub struct Mtk {
+    pub tokens: MtkData,
+    pub creator: ActorId,
+    pub supply: HashMap<TokenId, u128>,
 }
 
-static mut MTC: Option<MTC> = None;
+static mut CONTRACT: Option<Mtk> = None;
 
 #[no_mangle]
 extern "C" fn init() {
-    let init_info: InitMTK = msg::load().expect("Failed to load init info");
-
-    let token = Token {
-        name: init_info.name,
-        total_supply: init_info.total_supply,
-        owners: BTreeMap::new(),
-    };
-
-    let mut init_tokens_map = BTreeMap::new();
-    init_tokens_map.insert(init_info.token_id, token);
+    let InitMTK {
+        name,
+        symbol,
+        base_uri,
+    } = msg::load().expect("Unable to decode `InitMtk`");
 
     unsafe {
-        MTC = Some(MTC {
-            tokens: init_tokens_map,
+        CONTRACT = Some(Mtk {
+            tokens: MtkData {
+                name,
+                symbol,
+                base_uri,
+                ..Default::default()
+            },
+            creator: msg::source(),
             ..Default::default()
         });
     }
-
-    let _ = msg::reply(String::from("Reputation contract initiated!"), 0);
 }
 
 #[no_mangle]
 extern "C" fn handle() {
-    let actions: MTKAction = msg::load().expect("Failed to load actions");
-    let mtc: &mut MTC = unsafe { MTC.as_mut().expect("Multi-token contract not initialized!") };
+    let action: MTKAction = msg::load().expect("Failed to decode `MtkAction` message.");
+    let mtk_contract = unsafe { CONTRACT.as_mut().expect("`Mtk` is not initialized.") };
 
-    match actions {
-        MTKAction::Mint { token_id, to, amount } => {
-            // Check if the token with the id exists
-            if !mtc.tokens.contains_key(&token_id) {
-                let _ = msg::reply(MTKEvent::Err { msg: String::from("Token not exists!") }, 0);
-            }
-            // Check if the owner exists
-            if !mtc.owners.contains_key(&to) {
-                // If its a new user, add the entry
-                mtc.owners.insert(to, GeneralOwnerData { balance: amount });
+    let reply = match action {
+        MTKAction::Mint {
+            id,
+            amount,
+            to,
+            token_metadata,
+        } => mtk_contract.mint(id, amount, to, token_metadata),
+
+        MTKAction::AddSkillFt { ft_id, nft_id } => mtk_contract.add_ft(ft_id, nft_id),
+    };
+
+    msg::reply(reply, 0).expect("Failed to encode or reply with `Result<MtkEvent, MtkError>`.");
+}
+
+#[no_mangle]
+extern "C" fn state() {
+    let contract = unsafe { CONTRACT.take().expect("Unexpected error in taking state") };
+    msg::reply::<State>(contract.into(), 0).expect(
+        "Failed to encode or reply with `<ContractMetadata as Metadata>::State` from `state()`",
+    );
+}
+
+impl Mtk {
+    fn mint(
+        &mut self,
+        id: TokenId,
+        amounts: u128,
+        to: ActorId,
+        _metadata: Option<TokenMetadata>,
+    ) -> Result<MTKEvent, MTKError> {
+        // 1. check if the token id exists
+        if self.tokens.fungible_tokens.contains(&id) {
+            // 2. if the receipient exists, add to the existing balance; else create a new balance
+            let owner_balances = self.tokens.balances.get_mut(&id).unwrap();
+            if let Some((_owner, balance)) =
+                owner_balances.iter_mut().find(|(owner, _)| to.eq(owner))
+            {
+                *balance += amounts;
             } else {
-                // If the user exists, update the balance
-                let owner = mtc.owners.get_mut(&to).expect("Owner not found");
-                owner.balance += amount;
+                owner_balances.insert(to, amounts);
             }
+            return Ok(MTKEvent::MintTo { to, id, amounts });
+        }
+        // 3. if the token id does not exist, return an error
+        Err(MTKError::TokenDoesNotExists)
+    }
 
-            let _ = msg::reply(MTKEvent::Ok { msg: String::from("Token minted!") }, 0);
-        },
-        MTKAction::GetBalance { token_id, owner } => {
-            // Check if the token with the id exists
-            if !mtc.tokens.contains_key(&token_id) {
-                let _ = msg::reply(MTKEvent::Err { msg: String::from("Token not exists!") }, 0);
-            }
-            // Check if the owner exists
-            if !mtc.owners.contains_key(&owner) {
-                let _ = msg::reply(MTKEvent::Err { msg: String::from("Owner not exists!") }, 0);
-            }
+    fn add_ft(&mut self, ft_id: TokenId, nft_id: TokenId) -> Result<MTKEvent, MTKError> {
+        // if token id doens't exist, add it to the list of fungible tokens; else return an error
+        if !self.tokens.fungible_tokens.contains(&ft_id) {
+            self.tokens.fungible_tokens.push(ft_id);
+            self.tokens.balances.insert(ft_id, HashMap::new());
+            // add the matching pairs
+            self.tokens.matching_pairs.insert(ft_id, nft_id);
 
-            let owner = mtc.owners.get(&owner).expect("Owner not found");
-            let _ = msg::reply(MTKEvent::Ok { msg: format!("Balance: {}", owner.balance) }, 0);
-        },
+            return Ok(MTKEvent::NewFtAdded { ft_id, nft_id });
+        }
+
+        Err(MTKError::TokenAlreadyExists)
+    }
+}
+
+impl From<Mtk> for State {
+    fn from(value: Mtk) -> Self {
+        let Mtk {
+            tokens,
+            creator,
+            supply,
+        } = value;
+
+        let MtkData {
+            name,
+            symbol,
+            base_uri,
+            balances,
+            matching_pairs,
+            fungible_tokens,
+            skill_nfts,
+            repu_nfts,
+            token_metadata,
+            owners,
+        } = tokens;
+
+        let balances = balances
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().map(|(a, b)| (a, b)).collect()))
+            .collect();
+        let matching_pairs = matching_pairs.into_iter().collect();
+        let ft_tokens = fungible_tokens;
+        let skill_nft_tokens = skill_nfts;
+        let repu_nft_tokens = repu_nfts;
+        let token_metadata = token_metadata.into_iter().map(|(k, v)| (k, v)).collect();
+        let owners = owners.into_iter().map(|(k, v)| (k, v)).collect();
+        let supply = supply.into_iter().map(|(k, v)| (k, v)).collect();
+        Self {
+            name,
+            symbol,
+            base_uri,
+            balances,
+            matching_pairs,
+            ft_tokens,
+            skill_nft_tokens,
+            repu_nft_tokens,
+            token_metadata,
+            owners,
+            creator,
+            supply,
+        }
     }
 }
