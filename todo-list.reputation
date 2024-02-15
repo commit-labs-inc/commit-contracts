@@ -1,12 +1,10 @@
-0. ✅ Multi-token data structure, considering fungible tokens only.
-1. Multi-token contract management actions: change_base_uri, add_ft, change_ft, add_nft, change_nft, add_repu_nft, change_repu_nft, verify_repu.
-2. Skill fungible token data structure.
-3. Skill ft actions: mint_to, burn_to_nft.
-4. Skill NFT data structure.
-5. Reputation NFT data structure.
-6. Reputation NFT actions: mint_to.
-7. Add error events.
-8. Standardize naming.
+0. ✅ Skill FT data structure.
+1. ✅ Skill NFT data structure.
+2. ✅ Multi-token data structure.
+3. ✅ Contract actions: ✅mint_ft_to, ✅mint_nft_to, ✅burn, ✅change_base_uri, ✅add_ft, ✅change_ft, ✅add_nft, ✅remove_nft, ✅verify_repu.
+4. Action implementations: ✅mint_ft_to, ✅mint_nft_to, ✅burn, ✅change_base_uri, ✅add_ft, ✅change_ft, ✅add_nft, ✅remove_nft, verify_repu
+5. Add error events.
+6. Standardize naming.
 
 ----------------------------------------------------------------------------------------
 

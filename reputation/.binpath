@@ -1,1 +1,1 @@
-target/wasm32-unknown-unknown/debug/reputation
+target/wasm32-unknown-unknown/release/reputation
