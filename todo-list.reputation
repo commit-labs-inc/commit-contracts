@@ -8,4 +8,4 @@
 
 ----------------------------------------------------------------------------------------
 
-1. lock down the system design before further coding.
+1. add access control for contract management actions.
