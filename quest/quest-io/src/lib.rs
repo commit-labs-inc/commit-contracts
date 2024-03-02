@@ -1,6 +1,6 @@
 #![no_std]
-use gstd::{prelude::*, ActorId, collections::BTreeMap};
-use gmeta::{In, InOut, Metadata};
+use gstd::{collections::BTreeMap, prelude::*, ActorId};
+use gmeta::{In, InOut, Metadata, Out};
 
 mod helper_functions;
 
@@ -14,7 +14,7 @@ impl Metadata for ProgramMetadata {
     type Reply = ();
     type Others = ();
     type Signal = ();
-    type State = ();
+    type State = Out<State>;
 }
 
 /// Init the quest contract with a list of approved providers
@@ -25,7 +25,7 @@ pub struct InitQuest {
 }
 
 /// Base structure for all quests
-#[derive(Default, Debug, Encode, Decode, TypeInfo)]
+#[derive(Default, Debug, Encode, Decode, TypeInfo, Clone, PartialEq, Eq)]
 pub struct Base {
 	/// Security requirements:
 	/// 1. institution and quest name needs to conform to social norm.
@@ -141,7 +141,7 @@ pub struct Modifiable {
 }
 
 // Base Tier - Skill Assessment Quest
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub struct BaseTierQuest {
 	pub base: Base,
 	/// Specified by the quest providers, how many free gradings they are willing to hand out to seekers.
@@ -215,7 +215,7 @@ impl QuestTrait for BaseTierQuest {
 }
 
 // Mid Tier - Hiring Purpose Quest
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub struct MidTierQuest {
 	pub base: Base,
 	/// Specified by the quest providers, how many free gradings they are willing to hand out to seekers.
@@ -313,7 +313,7 @@ impl QuestTrait for MidTierQuest {
 }
 
 // Top Tier - Competition Quest
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub struct TopTierQuest {
 	pub base: Base,
 	/// Specified by the competition organizer.
@@ -404,7 +404,7 @@ impl QuestTrait for TopTierQuest {
 }
 
 // Dedicated Quest
-#[derive(Debug, Encode, Decode, TypeInfo)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub struct DedicatedQuest {
 	pub base: Base,
 	/// Specify the wallet addresses that can claim this quest.
@@ -485,24 +485,26 @@ impl QuestTrait for DedicatedQuest {
 }
 
 /// The status of a seeker for a quest.
-#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub enum SeekerStatus {
+	#[default]
 	Waiting,
 	Submitted(Submmision),
 	Graded(Gradings),
 }
 
 /// Possible gradings for every quest.
-#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq, Clone)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub enum Gradings {
 	Accept,
 	Good,
+	#[default]
 	Reject,
 }
 
 /// List all possible skill tokens we support.
 /// This list should be manageable through OpenGov.
-#[derive(Default, Debug, Encode, Decode, TypeInfo, Clone)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub enum SkillToken {
 	#[default]
 	None,
@@ -512,15 +514,16 @@ pub enum SkillToken {
 
 /// List all possible skill badges we can issue, they should be matched 1-1 to skill tokens.
 /// This list should be manageable through OpenGov.
-#[derive(Debug, Encode, Decode, TypeInfo, Clone, Copy)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq, Copy)]
 pub enum SkillNFT {
+	#[default]
 	Python,
 	Simulation,
 }
 
 /// List all possible reputation nfts we can provide, this should be more generall then the skill nfts.
 /// This list should be manageable through OpenGov, but preferabily with a faster voting process setup.
-#[derive(Default, Debug, Encode, Decode, TypeInfo, Clone)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub enum RepuNFT {
 	#[default]
 	None,
@@ -529,8 +532,9 @@ pub enum RepuNFT {
 	CSInternship,
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo, PartialEq, Eq)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub enum QuestStatus {
+	#[default]
 	Open,
 	Full,
 	Closed,
@@ -538,8 +542,9 @@ pub enum QuestStatus {
 }
 
 /// All possible quest types supported for now.
-#[derive(Encode, Decode, TypeInfo, Debug)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, PartialEq, Eq)]
 pub enum QuestType {
+	#[default]
 	BaseTier,
 	MidTier,
 	TopTier,
@@ -609,4 +614,17 @@ pub enum QuestEvent {
 	Err {
 		msg: String,
 	},
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
+pub struct State {
+	pub admin: ActorId,
+	pub base_tier_quests: Vec<(QuestId, BaseTierQuest)>,
+	pub mid_tier_quests: Vec<(QuestId, MidTierQuest)>,
+	pub top_tier_quests: Vec<(QuestId, TopTierQuest)>,
+	pub dedicated_quests: Vec<(QuestId, DedicatedQuest)>,
+	pub quest_status: Vec<(QuestId, QuestStatus)>,
+	pub approved_providers: Vec<ActorId>,
+	pub quests_to_tiers: Vec<(QuestId, QuestType)>,
+	pub minumum_free_gradings: u8,
 }

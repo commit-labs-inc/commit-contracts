@@ -1,4 +1,5 @@
 #![no_std]
+
 use gstd::{collections::BTreeMap, exec, msg, prelude::*, ActorId};
 use quest_io::*;
 use quest_io::QuestId;
@@ -21,7 +22,7 @@ pub struct Quests {
 		pub approved_providers: Vec<ActorId>,
         /// For fast search of a quest without the need to loop through the keys of the quest mappings
         pub quests_to_tiers: BTreeMap<QuestId, QuestType>,
-        minumum_free_gradings: u8,
+        pub minumum_free_gradings: u8,
 }
 
 static mut CONTRACT: Option<Quests> = None;
@@ -66,6 +67,14 @@ extern "C" fn handle() {
             let _ = msg::reply(quests.close(&quest_id), 0);
         },
     }
+}
+
+#[no_mangle]
+extern "C" fn state() {
+    let contract = unsafe { CONTRACT.take().expect("Unexpected error in taking state") };
+    msg::reply::<State>(contract.into(), 0).expect(
+        "Failed to encode or reply with `<ContractMetadata as Metadata>::State` from `state()`",
+    );
 }
 
 impl Quests {
@@ -314,6 +323,65 @@ impl Quests {
             }
         }
     }
+}
+
+impl From<Quests> for State {
+    fn from(quests: Quests) -> Self {
+        let Quests {
+            admin,
+            base_tier_quests,
+            mid_tier_quests,
+            top_tier_quests,
+            dedicated_quests,
+            quest_status,
+            approved_providers,
+            quests_to_tiers,
+            minumum_free_gradings,
+        } = quests;
+
+        let base_tier_quests = base_tier_quests
+            .into_iter()
+            .map(|(k, v)| (k, v))
+            .collect();
+
+        let mid_tier_quests = mid_tier_quests
+            .into_iter()
+            .map(|(k, v)| (k, v))
+            .collect();
+
+        let top_tier_quests = top_tier_quests
+            .into_iter()
+            .map(|(k, v)| (k, v))
+            .collect();
+
+        let dedicated_quests = dedicated_quests
+            .into_iter()
+            .map(|(k, v)| (k, v))
+            .collect();
+
+        let quest_status = quest_status
+            .into_iter()
+            .map(|(k, v)| (k, v))
+            .collect();
+
+        let quests_to_tiers = quests_to_tiers
+            .into_iter()
+            .map(|(k, v)| (k, v))
+            .collect();
+
+        Self {
+            admin,
+            base_tier_quests,
+            mid_tier_quests,
+            top_tier_quests,
+            dedicated_quests,
+            quest_status,
+            approved_providers,
+            quests_to_tiers,
+            minumum_free_gradings,
+        }
+    }
+
 }
 
 /// Generate random id for quests

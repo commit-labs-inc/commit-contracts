@@ -17,6 +17,10 @@ gtest.workspace = true
 gear-wasm-builder.workspace = true
 quest-io.workspace = true
 
+[workspace]
+members = [
+    "state",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,6 +28,7 @@ edition = "2021"
 
 [workspace.dependencies]
 gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"], tag = "v1.0.2" }
+gmeta = "1.1.0"
 parity-scale-codec = { version = "3", default-features = false }
 scale-info = { version = "2", default-features = false }
 quest-io = { path = "quest-io" }
