@@ -2,10 +2,10 @@
 1. ✅ Skill NFT data structure.
 2. ✅ Multi-token data structure.
 3. ✅ Contract actions: ✅mint_ft_to, ✅mint_nft_to, ✅burn, ✅change_base_uri, ✅add_ft, ✅change_ft, ✅add_nft, ✅remove_nft, ✅verify_repu.
-4. Action implementations: ✅mint_ft_to, ✅mint_nft_to, ✅burn, ✅change_base_uri, ✅add_ft, ✅change_ft, ✅add_nft, ✅remove_nft, verify_repu
+4. Action implementations: ✅mint_ft_to, ✅mint_nft_to, ✅burn, ✅change_base_uri, ✅add_ft, ✅change_ft, ✅add_nft, ✅remove_nft, ✅verify_repu
 5. Add error events.
 6. Standardize naming.
 
 ----------------------------------------------------------------------------------------
 
-1. add access control for contract management actions.
+1. lock down the system design before further coding.
